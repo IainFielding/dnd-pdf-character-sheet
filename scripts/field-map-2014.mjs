@@ -124,7 +124,6 @@ export const FIELDS = {
   factionName: "FactionName",
   backstory: "Backstory",
   additionalFeatures: "Feat+Traits",
-  treasure: "Treasure",
   // Page 3 spellcasting header
   spellcastingClass: "Spellcasting Class 2",
   spellcastingAbility: "SpellcastingAbility 2",
