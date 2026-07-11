@@ -1,7 +1,12 @@
-# Continuous integration: lint, JSON validation, and unit tests.
+# Continuous integration: JSON validation and script syntax checks.
 #
 # Runs on every push and pull request. This is separate from the release workflow
 # (main.yml), which only fires when a GitHub release is published.
+#
+# This module has no build step or npm toolchain, so CI stays dependency-free:
+# it validates the manifest and language files as JSON and syntax-checks the ES
+# modules. That catches the "stray comma" class of errors that would otherwise
+# only surface when Foundry loads the module.
 name: CI
 
 on:
@@ -16,24 +21,17 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
-      - name: Set up Node
-        uses: actions/setup-node@v5
-        with:
-          node-version: "22"
-          cache: "npm"
-
-      - name: Install Dependencies
-        run: npm ci
-
-      # Fail fast if the manifest or a language file isn't valid JSON — Foundry parses
-      # these at load and there is no build step to catch a stray comma otherwise.
+      # Fail fast if the manifest or a language file isn't valid JSON — Foundry
+      # parses these at load and there is no build step to catch a stray comma.
       - name: Validate JSON
-        run: npm run validate:json
+        run: |
+          jq empty module.json
+          for f in lang/*.json; do jq empty "$f"; done
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Unit Tests
-        run: npm test
+      # Syntax-check the ES modules without executing them, so a typo can't ship.
+      # lib/ is excluded: it holds the minified pdf-lib vendor bundle.
+      - name: Syntax-check scripts
+        run: |
+          find scripts -name '*.mjs' -print0 | xargs -0 -I{} node --check "{}"

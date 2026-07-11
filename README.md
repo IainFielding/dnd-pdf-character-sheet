@@ -1,8 +1,6 @@
 # Simple D&D PDF Character Sheet
 
-A Foundry VTT module that turns any D&D 5e player character into a completed,
-form-fillable PDF character sheet with a single click. It reads everything
-straight from the actor's data, fills in an official-style sheet, and downloads
+A Foundry VTT module that turns any D&D 5e player character into a completed, PDF character sheet with a single click. It reads everything straight from the actor's data, fills in an official-style sheet, and downloads
 it to your computer ready to print or save.
 
 Supports both the **2024** and the **2014** character sheet layouts.
@@ -11,38 +9,35 @@ Supports both the **2024** and the **2014** character sheet layouts.
 
 ## Requirements
 
-- Foundry VTT version 14 or newer
-- The **D&D 5e** game system (version 5.3.3 or newer)
+- **Foundry VTT** version 14 or newer
+- **D&D 5e** game system version 5.3.3 or newer
 
-There is nothing else to install or configure. The module bundles everything it
-needs, and no data is ever sent anywhere. The PDF is built entirely inside your
-browser and saved directly to your device.
-
----
-
-## Quick start
-
-1. Open the **Actors** sidebar.
-2. Right-click any player character.
-3. Choose **PDF Character Sheet**.
-4. Your browser downloads a filled-in PDF named after the character.
-
-That's the whole workflow. The rest of this guide explains it in more detail.
-
-_[Screenshot placeholder: the Actors sidebar with the right-click context menu open, "PDF Character Sheet" highlighted]_
+There is nothing else to install or configure. The module bundles everything it needs, and no data is ever sent anywhere. The PDF is built entirely inside your browser and saved directly to your device.
 
 ---
 
 ## Generating a character sheet
 
-The module adds a **PDF Character Sheet** entry to the right-click (context)
+The module adds a **PDF Character Sheet** button in two places
+
+### Actors Sidebar
 menu of characters in the Actors sidebar.
 
 1. In the **Actors** sidebar, find the character you want to export.
 2. Right-click their name to open the context menu.
 3. Click **PDF Character Sheet**.
 
-_[Screenshot placeholder: the "Generating PDF character sheet…" notification in the top-right of Foundry]_
+![right click menu](docs/img/actor-context-window.png)
+
+### Character Sheet Sidebar
+in the menu system on the actors character sheet.
+
+1. Open up the actors character sheet.
+2. Click the ... menu at the top right of the sheet.
+3. Click **PDF Character Sheet**.
+
+![right click menu](docs/img/character-sheet-context-window.png)
+
 
 ---
 
@@ -136,10 +131,7 @@ normal browser download, so anything that blocks downloads will block it too.
 
 This module is developed by **Iain Fielding** (Discord: _Sogrom_).
 
-- Author website: https://iainfielding.com
-
-Bug reports and suggestions are welcome. When reporting a problem, it helps to
-include the sheet layout you were using (2024 or 2014) and any messages from the
+Bug reports and suggestions are welcome. Simply log them into the Github Issues. When reporting a problem, it helps to include the sheet layout you were using (2024 or 2014) and any messages from the
 browser console.
 
 ---
