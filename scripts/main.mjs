@@ -113,8 +113,8 @@ async function generatePdf(actor) {
  *   game.modules.get("sogrom-dnd5e-character-sheet-pdf").api.generateDebugPdf("2024")
  */
 async function generateDebugPdf(template=DEFAULT_TEMPLATE) {
-  const { path } = templateConfig(template);
-  const filler = await SheetFiller.create(path);
+  const { path, Filler } = templateConfig(template);
+  const filler = await Filler.create(path);
   const rows = [];
   let n = 1;
   for ( const field of filler.form.getFields() ) {
@@ -415,7 +415,9 @@ export class SheetFiller {
     for ( const denomination of ["cp", "sp", "ep", "gp", "pp"] ) this.text(FIELDS[denomination], currency[denomination] ?? 0);
 
     const physical = ["weapon", "equipment", "consumable", "tool", "container", "loot"];
-    const items = actor.items.filter(i => physical.includes(i.type))
+    // Skip items stored inside a container: the container itself is already listed, and its
+    // contents would otherwise appear a second time at the top level.
+    const items = actor.items.filter(i => physical.includes(i.type) && !i.system.container)
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(i => (i.system.quantity > 1) ? `${i.name} x${i.system.quantity}` : i.name);
     this.text(FIELDS.equipment, items.join("\n"), { fontSize: 8 });
@@ -672,14 +674,22 @@ export class SheetFiller {
     this.text(FIELDS.spellSaveDC, attributes.spell?.dc ?? "");
     this.text(FIELDS.spellAttackBonus, signed(attributes.spell?.attack ?? 0));
 
-    // Slot totals per level
+    // Slot totals per level, including Warlock Pact Magic (kept separately under spells.pact and
+    // folded into the matching level's row so a Warlock's slots are not left blank)
+    const slotTotals = {};
     for ( let level = 1; level <= 9; level++ ) {
       const slots = system.spells?.[`spell${level}`];
+      if ( slots?.max ) slotTotals[level] = { max: slots.max, value: slots.value ?? 0 };
+    }
+    const pact = system.spells?.pact;
+    if ( pact?.max && pact.level ) {
+      const existing = slotTotals[pact.level] ?? { max: 0, value: 0 };
+      slotTotals[pact.level] = { max: existing.max + pact.max, value: existing.value + (pact.value ?? 0) };
+    }
+    for ( const [level, { max, value }] of Object.entries(slotTotals) ) {
       const fields = slotFields(level);
-      if ( slots?.max ) {
-        this.text(fields.total, slots.max);
-        this.text(fields.remaining, slots.value ?? 0);
-      }
+      this.text(fields.total, max);
+      this.text(fields.remaining, value);
     }
 
     // Spell names grouped by level; the prepared circle is checked for prepared/always-prepared spells
@@ -881,7 +891,9 @@ export class Sheet2024Filler extends SheetFiller {
     for ( const denomination of ["cp", "sp", "ep", "gp", "pp"] ) this.text(F24[denomination], currency[denomination] ?? 0);
 
     const physical = ["weapon", "equipment", "consumable", "tool", "container", "loot"];
-    const items = actor.items.filter(i => physical.includes(i.type))
+    // Skip items stored inside a container: the container itself is already listed, and its
+    // contents would otherwise appear a second time at the top level.
+    const items = actor.items.filter(i => physical.includes(i.type) && !i.system.container)
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(i => (i.system.quantity > 1) ? `${i.name} x${i.system.quantity}` : i.name);
     this.text(F24.equipment, items.join(", "), { fontSize: 8 });
@@ -945,11 +957,17 @@ export class Sheet2024Filler extends SheetFiller {
     this.text(F24.spellSaveDC, header.saveDC);
     this.text(F24.spellAttackBonus, header.attackBonus);
 
-    // Spell slot totals per level (players track expended slots by hand, so only totals are filled)
+    // Spell slot totals per level (players track expended slots by hand, so only totals are filled).
+    // Warlock Pact Magic lives separately under spells.pact; fold it into the matching level so a
+    // Warlock's slots are not left blank.
+    const slotTotals = {};
     for ( let level = 1; level <= 9; level++ ) {
       const slots = system.spells?.[`spell${level}`];
-      if ( slots?.max ) this.text(SPELL_SLOT_TOTALS_24[level], slots.max);
+      if ( slots?.max ) slotTotals[level] = (slotTotals[level] ?? 0) + slots.max;
     }
+    const pact = system.spells?.pact;
+    if ( pact?.max && pact.level ) slotTotals[pact.level] = (slotTotals[pact.level] ?? 0) + pact.max;
+    for ( const [level, max] of Object.entries(slotTotals) ) this.text(SPELL_SLOT_TOTALS_24[level], max);
 
     // The unified table lists cantrips first, then spells by level, then by name
     const sorted = spells.slice().sort((a, b) =>
@@ -1066,7 +1084,7 @@ const DAMAGE_TYPE_ABBR = {
  * @param {Item} weapon
  * @returns {string}
  */
-function damageSummary(weapon) {
+export function damageSummary(weapon) {
   return (weapon.labels?.damages ?? []).map(part => {
     const formula = part.formula ?? part.label ?? "";
     if ( !formula ) return "";
@@ -1081,7 +1099,7 @@ function damageSummary(weapon) {
  * @param {Item} weapon
  * @returns {string}
  */
-function weaponNotes(weapon) {
+export function weaponNotes(weapon) {
   // `properties` is a Set in current dnd5e versions but was an Array in older ones
   const props = weapon.system?.properties;
   const has = p => props?.has ? props.has(p) : Array.isArray(props) ? props.includes(p) : false;
@@ -1089,7 +1107,7 @@ function weaponNotes(weapon) {
 }
 
 /** Format a number as a signed modifier string. */
-function signed(value) {
+export function signed(value) {
   const n = Number(value) || 0;
   return n >= 0 ? `+${n}` : `${n}`;
 }
@@ -1102,7 +1120,7 @@ function signed(value) {
  * @returns {{level: string, name: string, castingTime: string, range: string,
  *            concentration: boolean, ritual: boolean, material: boolean}}
  */
-function spellRowInfo(spell) {
+export function spellRowInfo(spell) {
   const level = spell.system.level ?? 0;
   // `properties` is a Set in current dnd5e versions but was an Array in older ones
   const props = spell.system.properties;
@@ -1123,14 +1141,17 @@ function spellRowInfo(spell) {
  * words like "Reaction" or "Bonus Action" overflow at any legible size (e.g. "Bonus Action" -> "BA",
  * "Reaction" -> "R", "10 Minutes" -> "10 Min"). Falls back to the full label if nothing matches.
  */
-function castingTimeAbbr(spell) {
+export function castingTimeAbbr(spell) {
   const label = spell.labels?.activation ?? "";
   // Order matters: "Bonus Action" and "Reaction" both contain "action", so test them first.
   const rules = [[/bonus/i, "BA"], [/reaction/i, "R"], [/action/i, "A"], [/minute/i, "Min"], [/hour/i, "Hr"], [/day/i, "Day"]];
   for ( const [pattern, abbr] of rules ) {
     if ( !pattern.test(label) ) continue;
+    // Keep the count for durational casts ("10 Min", "1 Hr"); the instantaneous actions
+    // (BA/R/A) never carry a number so they collapse to the bare abbreviation.
     const count = label.match(/\d+/);
-    return (count && (Number(count[0]) > 1)) ? `${count[0]} ${abbr}` : abbr;
+    const durational = (abbr === "Min") || (abbr === "Hr") || (abbr === "Day");
+    return (count && durational) ? `${count[0]} ${abbr}` : abbr;
   }
   return label;
 }
@@ -1143,7 +1164,7 @@ function castingTimeAbbr(spell) {
  * @param {number} maxWidth   Available line width in points.
  * @returns {string[]}
  */
-function wrapText(text, font, size, maxWidth) {
+export function wrapText(text, font, size, maxWidth) {
   const lines = [];
   for ( const paragraph of sanitizeWinAnsi(text).split("\n") ) {
     if ( !paragraph.trim() ) {
@@ -1163,8 +1184,11 @@ function wrapText(text, font, size, maxWidth) {
       while ( font.widthOfTextAtSize(line, size) > maxWidth ) {
         let i = line.length - 1;
         while ( (i > 1) && (font.widthOfTextAtSize(line.slice(0, i), size) > maxWidth) ) i--;
-        lines.push(line.slice(0, i));
-        line = line.slice(i);
+        // Always consume at least one character, otherwise a single glyph wider than the
+        // whole line would loop forever (slice(0, 0) === "" leaves `line` unchanged).
+        const cut = Math.max(1, i);
+        lines.push(line.slice(0, cut));
+        line = line.slice(cut);
       }
     }
     if ( line ) lines.push(line);
@@ -1173,7 +1197,7 @@ function wrapText(text, font, size, maxWidth) {
 }
 
 /** Replace or drop characters the WinAnsi-encoded standard fonts cannot render. */
-function sanitizeWinAnsi(text) {
+export function sanitizeWinAnsi(text) {
   return text
     .replace(/[‘’‚′]/g, "'")
     .replace(/[“”„″]/g, "\"")
@@ -1219,7 +1243,7 @@ async function loadImageAsPng(src) {
 }
 
 /** Convert stored rich-text HTML to plain text suitable for a PDF text field. */
-function stripHtml(html) {
+export function stripHtml(html) {
   if ( !html ) return "";
   const el = document.createElement("div");
   el.innerHTML = html.replace(/<\/p>|<br\s*\/?>/gi, "$&\n");

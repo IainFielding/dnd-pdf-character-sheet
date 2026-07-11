@@ -23,6 +23,13 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # Pin Node so `node --test` (needs Node 18+) runs on a known version rather than
+      # whatever the runner image happens to ship.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       # Fail fast if the manifest or a language file isn't valid JSON — Foundry
       # parses these at load and there is no build step to catch a stray comma.
       - name: Validate JSON
@@ -35,3 +42,9 @@ jobs:
       - name: Syntax-check scripts
         run: |
           find scripts -name '*.mjs' -print0 | xargs -0 -I{} node --check "{}"
+
+      # Run the unit tests for the pure helpers and the field-name maps. Uses Node's built-in
+      # test runner, so CI stays dependency-free (no npm install). The tests import scripts/main.mjs
+      # directly — its Foundry hook registration is guarded behind `globalThis.Hooks`, absent here.
+      - name: Run tests
+        run: node --test
