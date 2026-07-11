@@ -131,17 +131,31 @@ async function generateDebugPdf(template=DEFAULT_TEMPLATE) {
   downloadBytes(await filler.save(), "field-map-debug.pdf");
 }
 
-/** Trigger a browser download of raw PDF bytes. */
+/**
+ * Trigger a browser download of raw PDF bytes.
+ * Works across Chrome, Edge, Firefox and Safari on Windows and macOS.
+ */
 function downloadBytes(bytes, filename) {
+  if ( !filename.toLowerCase().endsWith(".pdf") ) filename += ".pdf";
+  // Use the real application/pdf type so the download attribute's name and .pdf extension
+  // are honoured (octet-stream / data: URLs make some browsers, notably Safari, drop them).
   const blob = new Blob([bytes], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  a.rel = "noopener";
+  a.style.display = "none";
   document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  // Dispatch a full MouseEvent rather than a.click() for the widest browser support.
+  a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+  // Keep the anchor and object URL alive well past the click. Removing them synchronously
+  // cancels the download, so the browser instead navigates to the blob and renders the PDF
+  // inline with no way to save it — the original "opens on screen but can't save" symptom.
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 40_000);
 }
 
 /* -------------------------------------------- */
