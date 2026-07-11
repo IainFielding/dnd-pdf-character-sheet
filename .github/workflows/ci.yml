@@ -1,0 +1,39 @@
+# Continuous integration: lint, JSON validation, and unit tests.
+#
+# Runs on every push and pull request. This is separate from the release workflow
+# (main.yml), which only fires when a GitHub release is published.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci
+
+      # Fail fast if the manifest or a language file isn't valid JSON — Foundry parses
+      # these at load and there is no build step to catch a stray comma otherwise.
+      - name: Validate JSON
+        run: npm run validate:json
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit Tests
+        run: npm test

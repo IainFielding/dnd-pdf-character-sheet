@@ -1,0 +1,56 @@
+Simple D&D PDF Character sheet — Freeware License
+Copyright (c) 2026 Iain Fielding. All rights reserved.
+
+This software (the "Module") is provided free of charge for personal use.
+By downloading, installing, or using the Module you agree to the terms below.
+
+1. PERMITTED USE
+   You may download, install, and use the Module in Foundry Virtual
+   Tabletop for your own games, free of charge, for as long as you like.
+
+2. RESTRICTIONS
+   Except where required by applicable law, you may NOT, without the prior
+   written permission of the copyright holder:
+     a) copy, reproduce, or republish the Module or its source code, in
+        whole or in part;
+     b) modify, adapt, translate, or create derivative works based on it;
+     c) distribute, share, host, mirror, or make the Module available to
+        others through any channel other than the author's official
+        release; or
+     d) sell, sublicense, rent, or otherwise commercialise the Module or
+        any part of it.
+
+   DISTRIBUTION VIA FOUNDRY VTT IS EXPRESSLY PERMITTED. The copyright holder
+   grants Foundry Gaming, LLC and the official Foundry Virtual Tabletop
+   package directory (and the package management system it operates) the
+   right to list, host, and distribute the Module to end users, and grants
+   end users the right to install and update the Module through that system
+   and from the author's official manifest URL. This activity is not
+   "distribution" for the purposes of the restrictions in this clause.
+
+3. RESERVATION OF RIGHTS
+   All rights not expressly granted above are reserved by the copyright
+   holder. No ownership or intellectual-property rights are transferred to
+   you by this license.
+
+4. NO WARRANTY
+   THE MODULE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+5. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL THE AUTHOR OR COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM,
+   DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR
+   OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE MODULE OR THE
+   USE OR OTHER DEALINGS IN THE MODULE.
+
+6. THIRD-PARTY CONTENT
+   Dungeons & Dragons and D&D are trademarks of Wizards of the Coast. This
+   Module is an unofficial, fan-made tool and is not affiliated with,
+   endorsed, or sponsored by Wizards of the Coast. It includes no game
+   content of its own; it works only with content you already own and have
+   enabled in your Foundry VTT installation.
+
+For permissions beyond the scope of this license — including reuse,
+modification, or redistribution — please contact the author:
+Iain Fielding · https://iainfielding.com

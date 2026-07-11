@@ -1,0 +1,10 @@
+{
+  "SDPDF.ContextMenuLabel": "PDF Character Sheet",
+  "SDPDF.Generating": "Generating PDF character sheet for {name}…",
+  "SDPDF.Done": "PDF character sheet for {name} is downloading.",
+  "SDPDF.Error": "Failed to generate the PDF character sheet. See the console (F12) for details.",
+  "SDPDF.Settings.Template.Name": "Character Sheet Template",
+  "SDPDF.Settings.Template.Hint": "Which D&D character sheet PDF layout to generate.",
+  "SDPDF.Settings.Template.Choice2024": "2024 Character Sheet",
+  "SDPDF.Settings.Template.Choice2014": "2014 Character Sheet"
+}

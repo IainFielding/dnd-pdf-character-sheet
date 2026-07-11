@@ -1,0 +1,46 @@
+{
+  "id": "sogrom-dnd5e-character-sheet-pdf",
+  "title": "Simple D&D PDF Character sheet",
+  "description": "Adds a 'PDF Character Sheet' option to the right-click menu of player characters in the Actors sidebar, which generates a completed, form-fillable D&D 5e character sheet PDF from the actor's data and downloads it.",
+  "esmodules": [
+    "scripts/main.mjs"
+  ],
+  "scripts": [
+    "lib/pdf-lib.min.js"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "version": "#{VERSION}#",
+  "compatibility": {
+    "minimum": "14.359",
+    "verified": "14"
+  },
+  "authors": [
+    {
+      "name": "Iain Fielding",
+      "url": "https://iainfielding.com",
+      "discord": "Sogrom"
+    }
+  ],
+  "relationships": {
+    "systems": [
+      {
+        "id": "dnd5e",
+        "type": "system",
+        "compatibility": {
+          "minimum": "5.3.3",
+          "verified": "6.0.0"
+        }
+      }
+    ]
+  },
+  "url": "#{URL}#",
+  "manifest": "#{MANIFEST}#",
+  "download": "#{DOWNLOAD}#",
+  "license": "LICENSE"
+}
