@@ -1,9 +1,21 @@
+![](https://img.shields.io/badge/Foundry-v14-informational) ![Latest Release Download Count](https://img.shields.io/github/downloads/IainFielding/dnd-pdf-character-sheet/latest/module.zip?label=Downloads) <br>
 # Simple D&D PDF Character Sheet
 
 A Foundry VTT module that turns any D&D 5e player character into a completed, PDF character sheet with a single click. It reads everything straight from the actor's data, fills in an official-style sheet, and downloads
 it to your computer ready to print or save.
 
-Supports both the **2024** and the **2014** character sheet layouts.
+Supports five layouts. Three are original, freely distributable designs of our own that carry all the
+same fields as the official sheet plus an embedded character **portrait** — the **Fan Sheet (2024)**
+("Modern Arcane": ink-blue and gold), the **Fantasy Sheet (2024)** ("Inked Tome": a monochrome,
+hand-drawn woodcut style with a shield-shaped Armor Class, dice-hexagon ability scores and wax-seal
+stats), and the **Fantasy Sheet (2014)** — the same "Inked Tome" style laid out for the 2014 rules,
+with pennant banners, an open-book spellbook page and a clean white background. These three ship with
+the module.
+
+The other two are the official Wizards of the Coast **2024** and **2014** sheets. Those PDFs are
+copyrighted, so they **cannot be bundled** with the module — but you can use your own copy. Download
+each from D&D Beyond, upload it to Foundry, and select it in the export dialog (see
+[Choosing the sheet layout](#choosing-the-sheet-layout) below).
 
 ---
 
@@ -63,8 +75,8 @@ the sheet. This includes:
   and backstory.
 - **Spellcasting** — spellcasting ability, save DC, attack bonus, spell slots,
   and your known or prepared spells. Prepared spells are marked as such.
-- **Portrait** — on the 2014 sheet, the character's portrait image is embedded
-  into the sheet.
+- **Portrait** — on the 2014 sheet, both Fantasy Sheets and the Fan Sheet (2024),
+  the character's portrait image is embedded into the sheet.
 
 The generated PDF remains editable in a PDF reader, so you can tweak values by hand after exporting, or fill in anything the sheet left blank.
 
@@ -72,23 +84,39 @@ The generated PDF remains editable in a PDF reader, so you can tweak values by h
 
 ---
 
-## Choosing the sheet layout (2024 or 2014)
+## Choosing the sheet layout
 
-You can pick which character sheet layout the module produces:
+Every time you export, a small window opens asking **which layout to export the data to**. Pick one
+and click **Export**. Your choice is remembered and pre-selected next time.
 
-1. Open **Game Settings** (the gear icon).
-2. Click **Configure Settings**.
-3. Select **Module Settings**.
-4. Under **Simple D&D PDF Character Sheet**, set **Character Sheet Template** to
-   either **2024 Character Sheet** or **2014 Character Sheet**.
+The options are:
 
-The default is the **2024** layout.
+- **Fantasy Sheet (2024)** — the default; our original hand-drawn "Inked Tome" layout.
+- **Fantasy Sheet (2014)** — the same "Inked Tome" style laid out for the 2014 rules.
+- **Fan Sheet (2024)** — our original "Modern Arcane" layout.
+- **2024 Official Sheet** and **2014 Official Sheet** — Wizards of the Coast's own sheets. These
+  appear as choices **only once you have provided your own copy** (see below).
 
-This is a per-user setting, so each person at the table can choose the layout
-they prefer without affecting anyone else. The setting takes effect the next
-time you generate a sheet.
+The **Fan Sheet (2024)**, **Fantasy Sheet (2024)** and **Fantasy Sheet (2014)** are original layouts
+drawn by this project (see `tools/build-fan-sheet-2024.mjs`, `tools/build-fantasy-sheet-2024.mjs` and
+`tools/build-fantasy-sheet-2014.mjs`). Each contains all the same fields as its edition's official
+sheet, adds a portrait frame in the page-1 header, and — unlike the official templates — is our own
+artwork, so it can be shared freely as Fan Content. All three generators
+are deterministic; rerun them to rebuild the PDFs from source.
 
-![The Module Settings panel showing the Character Sheet Template dropdown](docs/img/settings.png)
+The layout you pick is per-user, so each person at the table can choose the one they prefer without
+affecting anyone else.
+
+### Using the official 2014 / 2024 sheets
+
+The official sheets are copyrighted and are not distributed with the module. To use one:
+
+1. Download the PDF from D&D Beyond:
+   - **2024 sheet:** <https://media.dndbeyond.com/compendium-images/free-rules/ph/character-sheet.pdf>
+   - **2014 sheet:** <https://media.dndbeyond.com/compendium-images/marketing/dnd_5e_charactersheet_formfillable.pdf>
+2. In the export dialog, next to the official sheet you want, click **Choose file…**, then upload or
+   browse to the PDF you downloaded.
+3. That layout is now a selectable option and stays available for future exports.
 
 ---
 

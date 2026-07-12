@@ -1,2 +1,8 @@
 node_modules/
 *.zip
+
+# The official 2014/2024 Wizards of the Coast sheets are copyrighted and cannot be
+# distributed with the module. Users download their own copy and select it in the export
+# dialog; any local copy kept here for testing must never be committed.
+templates/DnD_2014_Character-Sheet.pdf
+templates/DnD_2024_Character-Sheet.pdf
