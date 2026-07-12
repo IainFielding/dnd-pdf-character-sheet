@@ -1,6 +1,6 @@
-# Technical Details — How this module fills PDFs with `pdf-lib`
+# Technical Details: How this module fills PDFs with `pdf-lib`
 
-This document is for a new team member who needs to understand,
+This document is for whoever would like to understand,
 support, and extend the PDF-generation side of this module. It assumes you can read
 JavaScript but have never worked with PDFs before.
 
@@ -8,7 +8,7 @@ Read this alongside the code. The three files that matter are:
 
 | File | Role |
 | --- | --- |
-| [scripts/main.mjs](scripts/main.mjs) | All the PDF logic — loading, filling, drawing, saving, downloading. |
+| [scripts/main.mjs](scripts/main.mjs) | All the PDF logic: loading, filling, drawing, saving, downloading. |
 | [scripts/field-map-2014.mjs](scripts/field-map-2014.mjs) | Names of every form field on the 2014-era sheets. |
 | [scripts/field-map-2024.mjs](scripts/field-map-2024.mjs) | Names of every form field on the 2024-era sheets. |
 | [tools/](tools/) | Node scripts that *build* our own template PDFs (also with `pdf-lib`). |
@@ -17,11 +17,11 @@ Read this alongside the code. The three files that matter are:
 
 ## 1. The big picture in one paragraph
 
-A D&D character sheet PDF is not a picture — it is a document with interactive **form
+A D&D character sheet PDF is not a picture; it is a document with interactive **form
 fields** (text boxes and checkboxes) drawn on top of printed artwork, exactly like a tax
 form you can type into. Our job is: take a Foundry character (the `Actor`), read its data,
 and write the right value into each named field of a blank template PDF, then hand the
-finished PDF to the browser as a download. We never send anything to a server — the whole
+finished PDF to the browser as a download. We never send anything to a server; the whole
 PDF is built in the user's browser. The library that lets us open, edit, and save a PDF in
 plain JavaScript is [`pdf-lib`](https://pdf-lib.js.org/).
 
@@ -30,7 +30,7 @@ plain JavaScript is [`pdf-lib`](https://pdf-lib.js.org/).
 ## 2. What is `pdf-lib` and how is it loaded?
 
 `pdf-lib` is a pure-JavaScript library for creating and modifying PDF documents. It runs in
-both the browser and Node, with **no native dependencies** — which is why we can build the
+both the browser and Node, with **no native dependencies**, which is why we can build the
 whole sheet client-side.
 
 We load a **pre-built, minified copy** rather than an npm import:
@@ -39,7 +39,7 @@ We load a **pre-built, minified copy** rather than an npm import:
   that file as a plain `<script>` before our ES module runs.
 - That script attaches the library to the global variable **`PDFLib`**. So throughout
   [main.mjs](scripts/main.mjs) you will see `PDFLib.PDFDocument`, `PDFLib.StandardFonts`,
-  `PDFLib.PDFTextField`, etc. — there is no `import` for it.
+  `PDFLib.PDFTextField`, etc. There is no `import` for it.
 - Because it is a global, the first thing `SheetFiller.create` does is guard against it
   being missing: `if ( !globalThis.PDFLib ) throw new Error("pdf-lib is not loaded")`.
 
@@ -54,7 +54,7 @@ We load a **pre-built, minified copy** rather than an npm import:
 
 These five concepts cover ~90% of what the module does.
 
-### 3.1 `PDFDocument` — the whole file
+### 3.1 `PDFDocument`: the whole file
 
 ```js
 const doc = await PDFLib.PDFDocument.load(pdfBytes);  // open an existing PDF
@@ -64,7 +64,7 @@ const bytes = await doc.save();                       // serialise back to a Uin
 `load` takes the raw bytes of a PDF (an `ArrayBuffer`/`Uint8Array`) and gives you an
 editable document object. `save` does the reverse. Almost everything else hangs off `doc`.
 
-### 3.2 `PDFForm` — the collection of fillable fields
+### 3.2 `PDFForm`: the collection of fillable fields
 
 ```js
 const form = doc.getForm();
@@ -73,17 +73,17 @@ const field  = form.getTextField("Name"); // one field by its exact name
 ```
 
 A PDF's interactive fields live in a structure called the **AcroForm**. `pdf-lib` wraps it
-as a `PDFForm`. Every field has a **unique name** (unique across the whole document — this
+as a `PDFForm`. Every field has a **unique name** (unique across the whole document; this
 matters later, see §6.3).
 
 ### 3.3 Field types
 
 Each field is one of a few classes. We care about three:
 
-- **`PDFTextField`** — a text box. `field.setText("Gandalf")`, `field.setFontSize(8)`,
+- **`PDFTextField`**: a text box. `field.setText("Gandalf")`, `field.setFontSize(8)`,
   `field.enableMultiline()`.
-- **`PDFCheckBox`** — a checkbox. `field.check()` / `field.uncheck()`.
-- **`PDFButton`** — a push-button. We use it only for the portrait image slot:
+- **`PDFCheckBox`**: a checkbox. `field.check()` / `field.uncheck()`.
+- **`PDFButton`**: a push-button. We use it only for the portrait image slot:
   `button.setImage(image)`.
 
 We frequently `instanceof`-check before acting, because a name might resolve to the wrong
@@ -113,7 +113,7 @@ text there, resize it, or hide it. See §5 and §6.
 
 PDF coordinates are measured in **points** (1 point = 1/72 inch). A US-Letter page is
 `612 × 792` points. Crucially, **the origin `(0,0)` is the bottom-left corner**, and `y`
-increases *upward* — the opposite of screen/HTML coordinates. So when we draw text down a
+increases *upward*, the opposite of screen/HTML coordinates. So when we draw text down a
 box we *decrease* `y` line by line (see `drawFeatureBlocks`, `y -= lineHeight`).
 
 ---
@@ -153,7 +153,7 @@ const bytes  = await filler.save();         // 3. serialise the finished PDF
 downloadBytes(bytes, `${actor.name} - Character Sheet.pdf`);  // 4. download
 ```
 
-### 4.2 `create` — loading a template
+### 4.2 `create`: loading a template
 
 `SheetFiller.create` ([main.mjs:466](scripts/main.mjs#L466)) does the setup work:
 
@@ -162,7 +162,7 @@ downloadBytes(bytes, `${actor.name} - Character Sheet.pdf`);  // 4. download
 2. `PDFDocument.load(pdfBytes)` → `filler.doc`.
 3. `doc.getForm()` → `filler.form`.
 4. Embed two standard fonts (Helvetica + Helvetica-Bold) for direct drawing (§5).
-5. Build a **normalized field index** (`#index`) — see §4.3.
+5. Build a **normalized field index** (`#index`); see §4.3.
 
 ### 4.3 Field maps and name normalization
 
@@ -177,7 +177,7 @@ export const ABILITIES = {
 };
 ```
 
-The official WotC PDFs have messy field names — including **stray whitespace** like
+The official WotC PDFs have messy field names, including **stray whitespace** like
 `"Race "` or `"SpellSaveDC  2"`. To make lookups robust, `create` builds `#index`, a `Map`
 keyed by the **normalized** name (`normalize` = lowercase + all whitespace stripped,
 [main.mjs:489](scripts/main.mjs#L489)). Every helper looks fields up through this index, so
@@ -200,11 +200,11 @@ this.text("STR", 18);          // text() helper → field.setText("18")
 this.check("Check Box 11");    // check() helper → field.check()
 ```
 
-- `text(name, value, { fontSize })` ([main.mjs:506](scripts/main.mjs#L506)) — looks the
+- `text(name, value, { fontSize })` ([main.mjs:506](scripts/main.mjs#L506)) looks the
   field up in `#index`, verifies it is a `PDFTextField`, optionally sets a font size, and
-  writes the string. **Silently warns and skips** unknown fields — this is deliberate, so a
+  writes the string. **Silently warns and skips** unknown fields; this is deliberate, so a
   missing field on one template variant never aborts a whole export.
-- `check(name, checked)` ([main.mjs:529](scripts/main.mjs#L529)) — the checkbox equivalent.
+- `check(name, checked)` ([main.mjs:529](scripts/main.mjs#L529)) is the checkbox equivalent.
 
 **Font size gotcha:** some template fields have no default appearance (`/DA`) entry, so
 `field.setFontSize()` throws. `text()` catches that and writes a `/DA` string by hand:
@@ -216,7 +216,7 @@ field.acroField.setDefaultAppearance(`/Helv ${fontSize} Tf 0 g`);
 ### 5.2 Drawing directly onto the page (the special path)
 
 Sometimes a form field is not enough, and we paint text straight onto the page with
-`page.drawText(...)`. This content is **baked into the page** — not editable afterwards.
+`page.drawText(...)`. This content is **baked into the page**, not editable afterwards.
 
 We do this for the **Features & Traits** blocks (`drawFeatureBlocks`,
 [main.mjs:786](scripts/main.mjs#L786)) for one reason: **a single form field can only use
@@ -262,7 +262,7 @@ filler.fonts = {
 
 The 14 "standard" PDF fonts (Helvetica, Times, Courier, …) need no font file. We embed them
 once so `drawText` and `widthOfTextAtSize` can use them. **Caveat:** standard fonts are
-**WinAnsi-encoded** and cannot render arbitrary Unicode — hence §6.6.
+**WinAnsi-encoded** and cannot render arbitrary Unicode, hence §6.6.
 
 ### 6.2 Embedding the portrait image
 
@@ -279,11 +279,11 @@ button.setImage(image);
 `<img>`, paints it onto a `<canvas>`, and re-encodes it as PNG bytes via `canvas.toBlob`.
 Templates without a `CHARACTER IMAGE` button (the official sheets) are simply left alone.
 
-### 6.3 Field names must be unique — and why that matters for overflow pages
+### 6.3 Field names must be unique, and why that matters for overflow pages
 
 Every field in a PDF must have a **globally unique name**. This becomes a real constraint on
 the 2024 sheet: if an actor knows more than the 30 spells the printed table holds, we append
-**extra copies of page 2**. But you cannot just copy a page and keep its fields — you'd have
+**extra copies of page 2**. But you cannot just copy a page and keep its fields; you'd have
 two fields both named `"Spell 5 Name"`, which is invalid.
 
 `#addSpellOverflowPages` ([main.mjs:1318](scripts/main.mjs#L1318)) solves this:
@@ -324,7 +324,7 @@ field.enableReadOnly();
 
 `PDFName` and `PDFNumber` are low-level `pdf-lib` object types used when you manipulate the
 raw PDF dictionary directly. You only reach for them when the high-level API has no method
-for what you need — here, setting a raw annotation flag.
+for what you need; here, setting a raw annotation flag.
 
 ### 6.5 Resizing and creating fields
 
@@ -335,7 +335,7 @@ for what you need — here, setting a raw annotation flag.
 - `addTextField(page, name, rect, value, opts)`
   ([main.mjs:907](scripts/main.mjs#L907)) and `addCheckBox`
   ([main.mjs:933](scripts/main.mjs#L933)) create **brand-new** fields (used on overflow
-  pages). Note the transparent styling — `borderColor`/`backgroundColor` left `undefined` —
+  pages). Note the transparent styling (`borderColor`/`backgroundColor` left `undefined`)
   so the printed template art shows through instead of a white box.
 
 ### 6.6 WinAnsi sanitization
@@ -360,11 +360,11 @@ only, so `stripHtml` ([main.mjs:1582](scripts/main.mjs#L1582)) parses the HTML i
 `Uint8Array` of the finished PDF.
 
 `downloadBytes(bytes, filename)` ([main.mjs:417](scripts/main.mjs#L417)) turns those bytes
-into a browser download. Two subtleties are load-bearing and were bug fixes — **don't
+into a browser download. Two subtleties are load-bearing and were bug fixes; **don't
 "simplify" them away**:
 
 - The Blob uses the real `type: "application/pdf"` (not `octet-stream`) so browsers honour
-  the `.pdf` filename — Safari in particular drops it otherwise.
+  the `.pdf` filename; Safari in particular drops it otherwise.
 - The anchor element and object URL are cleaned up on a **40-second timeout**, not
   synchronously. Removing them immediately cancels the download in some browsers, causing the
   old "the PDF opens on screen but can't be saved" bug.
@@ -374,7 +374,7 @@ into a browser download. Two subtleties are load-bearing and were bug fixes — 
 ## 8. Where the bundled templates come from
 
 Our three original sheets (Fan 2024, Fantasy 2024, Fantasy 2014) are **generated** by the
-scripts in [tools/](tools/) — e.g.
+scripts in [tools/](tools/), e.g.
 [tools/build-fantasy-sheet-2024.mjs](tools/build-fantasy-sheet-2024.mjs). These run under
 **Node** and use the *same* `pdf-lib`, but from the *creation* side of the API:
 `PDFDocument.create()`, `doc.addPage()`, `page.drawRectangle/drawText/drawSvgPath`, and
@@ -403,30 +403,30 @@ game.modules.get("sogrom-dnd5e-character-sheet-pdf").api.generateDebugPdf("2024"
 `generateDebugPdf` ([main.mjs:394](scripts/main.mjs#L394)) writes a sequential number into
 every text field, ticks every checkbox, `console.table`s the number → field-name mapping, and
 downloads the result. Match the numbers you see on the generated PDF against the table to map
-a printed box to its field name — this is how the field maps were built.
+a printed box to its field name; this is how the field maps were built.
 
 ---
 
 ## 10. Common pitfalls checklist
 
-- **`pdf-lib is not loaded`** — the global `PDFLib` isn't present. Check `module.json`'s
+- **`pdf-lib is not loaded`**: the global `PDFLib` isn't present. Check `module.json`'s
   `scripts` array still lists `lib/pdf-lib.min.js` and that the file exists.
-- **A value doesn't appear on the sheet** — almost always a field-name mismatch. Look for a
+- **A value doesn't appear on the sheet**: almost always a field-name mismatch. Look for a
   `Unknown text field "…"` / `Unknown checkbox "…"` warning in the console, then fix the name
   in the relevant field map (remember lookups are whitespace/case-insensitive).
-- **Text throws or renders as `□`** — a non-WinAnsi character reached a font. Route it through
+- **Text throws or renders as `□`**: a non-WinAnsi character reached a font. Route it through
   `sanitizeWinAnsi`.
-- **Drawn text is invisible / covered by a white box** — the field widget wasn't hidden;
+- **Drawn text is invisible / covered by a white box**: the field widget wasn't hidden;
   ensure the box came from `#fieldBox` (which hides it) rather than `fieldRect`.
-- **"field already exists" on overflow pages** — a duplicate field name. Every created field
+- **"field already exists" on overflow pages**: a duplicate field name. Every created field
   must be unique; keep the `Overflow <pageCount>` prefix.
-- **Coordinates look upside-down** — remember `(0,0)` is bottom-left and `y` grows upward.
-- **The download opens in the viewer but won't save** — don't shorten the cleanup timeout in
+- **Coordinates look upside-down**: remember `(0,0)` is bottom-left and `y` grows upward.
+- **The download opens in the viewer but won't save**: don't shorten the cleanup timeout in
   `downloadBytes`; see §7.
 
 ---
 
-## 11. Tests — what to run and when
+## 11. Tests: what to run and when
 
 The project is **dependency-free**: there is no `package.json`, no `npm install`, no build
 step. Tests use **Node's built-in test runner**, so all you need is Node **18+** (CI pins
@@ -437,16 +437,16 @@ node --test
 ```
 
 That discovers and runs every `*.test.mjs` file under [test/](test/). **Always run it before
-you commit or open a PR** — it is exactly what CI runs (§12), so a green local run means a
+you commit or open a PR**; it is exactly what CI runs (§12), so a green local run means a
 green CI run.
 
 ### 11.1 The four test files
 
 | File | What it guards |
 | --- | --- |
-| [test/helpers.test.mjs](test/helpers.test.mjs) | The pure formatting/parsing helpers exported from `main.mjs` — `signed`, `castingTimeAbbr`, `spellRowInfo`, `weaponNotes`, `damageSummary`, `sanitizeWinAnsi`, `wrapText`, and `SheetFiller.normalize`. |
-| [test/field-map.test.mjs](test/field-map.test.mjs) | The 2014 and 2024 field-name maps — that they are internally consistent (no duplicate/typo'd names, expected keys present). |
-| [test/fan-sheet.test.mjs](test/fan-sheet.test.mjs) | The **built** Fan Sheet (2024) and Fantasy Sheet (2024) PDFs actually contain every field name the 2024 map expects, with the correct widget type, plus the `CHARACTER IMAGE` button — and no stray extras. |
+| [test/helpers.test.mjs](test/helpers.test.mjs) | The pure formatting/parsing helpers exported from `main.mjs`: `signed`, `castingTimeAbbr`, `spellRowInfo`, `weaponNotes`, `damageSummary`, `sanitizeWinAnsi`, `wrapText`, and `SheetFiller.normalize`. |
+| [test/field-map.test.mjs](test/field-map.test.mjs) | The 2014 and 2024 field-name maps: that they are internally consistent (no duplicate/typo'd names, expected keys present). |
+| [test/fan-sheet.test.mjs](test/fan-sheet.test.mjs) | The **built** Fan Sheet (2024) and Fantasy Sheet (2024) PDFs actually contain every field name the 2024 map expects, with the correct widget type, plus the `CHARACTER IMAGE` button, and no stray extras. |
 | [test/fantasy-2014-sheet.test.mjs](test/fantasy-2014-sheet.test.mjs) | The same structural check for the built Fantasy Sheet (2014) against the 2014 field map. |
 
 ### 11.2 Why the tests are shaped this way
@@ -454,11 +454,11 @@ green CI run.
 - **Importing `main.mjs` in Node is safe.** Its Foundry hook registration is guarded behind
   `if ( globalThis.Hooks )`, and the `PdfExportDialog` class is only defined when the
   `foundry` global exists. Neither is present under Node, so `import`ing the module just
-  gives you the exported pure functions and filler classes — no Foundry required.
+  gives you the exported pure functions and filler classes, no Foundry required.
 - **The sheet tests are the safety net for the build scripts.** Our bundled templates
   ([tools/](tools/)) and the fill logic agree *only* through shared field names. If a build
   script renames or drops a field, data would silently fail to land on the sheet at runtime.
-  The structural tests catch that at build time instead — they load the generated PDF with
+  The structural tests catch that at build time instead: they load the generated PDF with
   `pdf-lib` and assert every mapped name exists with the right widget type.
 
 ### 11.3 When you must regenerate templates first
@@ -479,11 +479,11 @@ byte-identical PDF and a clean `git diff`.
 
 ### 11.4 A quick sanity checklist before pushing
 
-1. `node --test` — all green.
+1. `node --test`: all green.
 2. If you touched a `tools/build-*.mjs`, rebuild that template and confirm `git diff` shows
    only the change you intended.
 3. If you touched `module.json` or a `lang/*.json`, they're still valid JSON (CI runs
-   `jq empty` on them — see §12).
+   `jq empty` on them, see §12).
 
 ---
 
@@ -492,35 +492,35 @@ byte-identical PDF and a clean `git diff`.
 There are two GitHub Actions workflows, in [.github/workflows/](.github/workflows/). They do
 completely different jobs and fire on different events.
 
-### 12.1 `ci.yml` — runs on every push and pull request
+### 12.1 `ci.yml`: runs on every push and pull request
 
 [.github/workflows/ci.yml](.github/workflows/ci.yml) is the gate on all branches. It has one
 `check` job on `ubuntu-latest` with Node 20, and mirrors §11's local checks so nothing
 reaches `main` broken:
 
-1. **Validate JSON** — `jq empty module.json` and every `lang/*.json`. Foundry parses these
+1. **Validate JSON**: `jq empty module.json` and every `lang/*.json`. Foundry parses these
    at load with no build step to catch a stray comma, so CI catches it first.
-2. **Syntax-check scripts** — `node --check` on each `scripts/*.mjs` (does not execute them;
+2. **Syntax-check scripts**: `node --check` on each `scripts/*.mjs` (does not execute them;
    `lib/` is skipped because it holds the minified `pdf-lib` vendor bundle).
-3. **Run tests** — `node --test` (the §11 suite).
+3. **Run tests**: `node --test` (the §11 suite).
 
 Because the toolchain is dependency-free, there is no `npm install` step and CI is fast. **If
 CI is red, the fix is almost always reproducible locally** by running the same three commands.
 
-### 12.2 `main.yml` — runs only when a GitHub Release is published
+### 12.2 `main.yml`: runs only when a GitHub Release is published
 
 [.github/workflows/main.yml](.github/workflows/main.yml) builds and attaches the distributable
-`module.zip`. It triggers **only** on `release: [published]` — not on pushes, not on tags
+`module.zip`. It triggers **only** on `release: [published]`, not on pushes, not on tags
 alone. Its steps:
 
 1. **Extract the version from the release tag.** The tag must be `v<major>.<minor>.<patch>`
    or `<major>.<minor>.<patch>` (e.g. `v1.2.3` or `1.2.3`); the leading `v` is stripped.
-2. **Token-replace `module.json`.** The committed manifest ships with placeholder tokens —
-   `#{VERSION}#`, `#{URL}#`, `#{MANIFEST}#`, `#{DOWNLOAD}#` — which this step fills with the
+2. **Token-replace `module.json`.** The committed manifest ships with placeholder tokens:
+   `#{VERSION}#`, `#{URL}#`, `#{MANIFEST}#`, `#{DOWNLOAD}#`, which this step fills with the
    real version and the release's manifest/download URLs. This edit is in-CI only and is
    **not** committed back.
 3. **Validate the manifest** again with `jq empty` after substitution.
-4. **Zip the module** — `module.json`, `README.md`, `LICENSE`, `scripts/`, `lib/`, `lang/`,
+4. **Zip the module**: `module.json`, `README.md`, `LICENSE`, `scripts/`, `lib/`, `lang/`,
    `templates/`. **Note what is *not* shipped:** `test/`, `tools/`, `docs/`, and this file.
    If you add a new top-level directory the module needs at runtime, you must add it to the
    `zip` step or it won't reach users.
@@ -538,7 +538,7 @@ Foundry's install/update check reads the `latest_manifest_url`
    attaches both files to the release.
 4. Update the module's entry on FoundryVTT's admin site if the manifest URL is new.
 
-> There is **no version number to bump by hand** in `module.json` — it stays as the
+> There is **no version number to bump by hand** in `module.json`; it stays as the
 > `#{VERSION}#` token and is filled from the release tag at build time. Editing it to a real
 > number would break the release substitution.
 
@@ -554,4 +554,4 @@ Foundry's install/update check reads the `latest_manifest_url`
 
 - `pdf-lib` docs & API: <https://pdf-lib.js.org/>
 - PDF form (AcroForm) basics: the concepts of *fields*, *widgets*, and *annotation flags* in
-  the PDF spec map directly onto the `pdf-lib` objects described in §3–§6.
+  the PDF spec map directly onto the `pdf-lib` objects described in §3-§6.

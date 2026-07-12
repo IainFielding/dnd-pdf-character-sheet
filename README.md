@@ -1,21 +1,25 @@
 ![](https://img.shields.io/badge/Foundry-v14-informational) ![Latest Release Download Count](https://img.shields.io/github/downloads/IainFielding/dnd-pdf-character-sheet/latest/module.zip?label=Downloads) <br>
 # Simple D&D PDF Character Sheet
 
-A Foundry VTT module that turns any D&D 5e player character into a completed, PDF character sheet with a single click. It reads everything straight from the actor's data, fills in an official-style sheet, and downloads
-it to your computer ready to print or save.
+A Foundry VTT module that turns any D&D 5e player character into a completed PDF character sheet. It reads everything straight from the actor's data and fills in the sheet, ready to print or save.
 
-Supports five layouts. Three are original, freely distributable designs of our own that carry all the
-same fields as the official sheet plus an embedded character **portrait** — the **Fan Sheet (2024)**
-("Modern Arcane": ink-blue and gold), the **Fantasy Sheet (2024)** ("Inked Tome": a monochrome,
-hand-drawn woodcut style with a shield-shaped Armor Class, dice-hexagon ability scores and wax-seal
-stats), and the **Fantasy Sheet (2014)** — the same "Inked Tome" style laid out for the 2014 rules,
-with pennant banners, an open-book spellbook page and a clean white background. These three ship with
-the module.
+## Five supported layouts
 
-The other two are the official Wizards of the Coast **2024** and **2014** sheets. Those PDFs are
-copyrighted, so they **cannot be bundled** with the module — but you can use your own copy. Download
-each from D&D Beyond, upload it to Foundry, and select it in the export dialog (see
-[Choosing the sheet layout](#choosing-the-sheet-layout) below).
+The module ships with five character sheets fully mapped: the official D&D 2014 and 2024 sheets, plus three of my own design, so even if you don't have the official ones you can still export your character to PDF.
+
+### Official D&D character sheets
+
+Full support for both the official **D&D 2014** and **D&D 2024** character sheets. Due to licensing and copyright rules I can't bundle the official sheets in the module, but I've fully mapped both of them. You just need to upload your own copy into your Foundry VTT server.
+
+### Original character sheets
+
+The other three are original, freely distributable designs of my own. They carry all the same fields as the official sheets, plus an embedded character portrait.
+
+| 2024 Fantasy | 2024 Fan | 2014 Fantasy |
+| :--: | :--: | :--: |
+| [![2024 Fantasy](docs/img/akra-2024Fantasy.png)](docs/sample/Akra-2024Fantasy.pdf) | [![2024 Fan](docs/img/akra-2024Fan.png)](docs/sample/Akra-2024Fan.pdf) | [![2014 Fantasy](docs/img/akra-2014Fantasy.png)](docs/sample/Akra-2014Fantasy.pdf) |
+
+You simply pick the character sheet you want to use when you start the export process.
 
 ---
 
@@ -30,10 +34,9 @@ There is nothing else to install or configure. The module bundles everything it 
 
 ## Generating a character sheet
 
-The module adds a **PDF Character Sheet** button in two places
+The module adds a **PDF Character Sheet** button in two places.
 
-### Actors Sidebar
-menu of characters in the Actors sidebar.
+### Actors sidebar
 
 1. In the **Actors** sidebar, find the character you want to export.
 2. Right-click their name to open the context menu.
@@ -41,15 +44,13 @@ menu of characters in the Actors sidebar.
 
 ![right click menu](docs/img/actor-context-window.png)
 
-### Character Sheet Sidebar
-in the menu system on the actors character sheet.
+### Character sheet menu
 
-1. Open up the actors character sheet.
+1. Open the character's sheet.
 2. Click the ... menu at the top right of the sheet.
 3. Click **PDF Character Sheet**.
 
-![right click menu](docs/img/character-sheet-context-window.png)
-
+![the character sheet menu](docs/img/character-sheet-context-window.png)
 
 ---
 
@@ -58,24 +59,24 @@ in the menu system on the actors character sheet.
 The module pulls the character's current data from Foundry and lays it out on
 the sheet. This includes:
 
-- **Header** — name, class and level (including subclass and multiclass),
+- **Header**: name, class and level (including subclass and multiclass),
   species/race, background, alignment, and experience points.
-- **Ability scores and skills** — scores, modifiers, saving throws, skill
+- **Ability scores and skills**: scores, modifiers, saving throws, skill
   totals, and proficiency markers, plus passive Perception.
-- **Combat** — armour class, initiative, speed, hit points (max, current, and
+- **Combat**: armour class, initiative, speed, hit points (max, current, and
   temporary), hit dice, proficiency bonus, and death saves.
-- **Attacks** — your equipped weapons with their attack bonuses and damage.
+- **Attacks**: your equipped weapons with their attack bonuses and damage.
   Extra weapons and a spell-attack summary flow into the notes area beneath.
-- **Proficiencies and languages** — armour, weapon, and tool proficiencies, and
+- **Proficiencies and languages**: armour, weapon, and tool proficiencies, and
   known languages.
-- **Features and traits** — class features, species traits, feats, and
+- **Features and traits**: class features, species traits, feats, and
   background features, each printed with its name.
-- **Equipment and currency** — carried items (with quantities) and coins.
-- **Character details** — personality traits, ideals, bonds, flaws, appearance,
+- **Equipment and currency**: carried items (with quantities) and coins.
+- **Character details**: personality traits, ideals, bonds, flaws, appearance,
   and backstory.
-- **Spellcasting** — spellcasting ability, save DC, attack bonus, spell slots,
+- **Spellcasting**: spellcasting ability, save DC, attack bonus, spell slots,
   and your known or prepared spells. Prepared spells are marked as such.
-- **Portrait** — on the 2014 sheet, both Fantasy Sheets and the Fan Sheet (2024),
+- **Portrait**: on the 2014 sheet, both Fantasy Sheets and the Fan Sheet (2024),
   the character's portrait image is embedded into the sheet.
 
 The generated PDF remains editable in a PDF reader, so you can tweak values by hand after exporting, or fill in anything the sheet left blank.
@@ -86,28 +87,18 @@ The generated PDF remains editable in a PDF reader, so you can tweak values by h
 
 ## Choosing the sheet layout
 
-Every time you export, a small window opens asking **which layout to export the data to**. Pick one
+Every time you export, a small window opens asking **which layout to export the data to**. Simply pick one
 and click **Export**. Your choice is remembered and pre-selected next time.
 
 The options are:
 
-- **Fantasy Sheet (2024)** — the default; our original hand-drawn "Inked Tome" layout.
-- **Fantasy Sheet (2014)** — the same "Inked Tome" style laid out for the 2014 rules.
-- **Fan Sheet (2024)** — our original "Modern Arcane" layout.
-- **2024 Official Sheet** and **2014 Official Sheet** — Wizards of the Coast's own sheets. These
+- **Fantasy Sheet (2024)**: the default; our original hand-drawn "Inked Tome" layout.
+- **Fantasy Sheet (2014)**: the same "Inked Tome" style laid out for the 2014 rules.
+- **Fan Sheet (2024)**: our original "Modern Arcane" layout.
+- **2024 Official Sheet** and **2014 Official Sheet**: Wizards of the Coast's own sheets. These
   appear as choices **only once you have provided your own copy** (see below).
 
-The **Fan Sheet (2024)**, **Fantasy Sheet (2024)** and **Fantasy Sheet (2014)** are original layouts
-drawn by this project (see `tools/build-fan-sheet-2024.mjs`, `tools/build-fantasy-sheet-2024.mjs` and
-`tools/build-fantasy-sheet-2014.mjs`). Each contains all the same fields as its edition's official
-sheet, adds a portrait frame in the page-1 header, and — unlike the official templates — is our own
-artwork, so it can be shared freely as Fan Content. All three generators
-are deterministic; rerun them to rebuild the PDFs from source.
-
-The layout you pick is per-user, so each person at the table can choose the one they prefer without
-affecting anyone else.
-
-### Using the official 2014 / 2024 sheets
+### Looking to use the official 2014 / 2024 sheets
 
 The official sheets are copyrighted and are not distributed with the module. To use one:
 
@@ -117,6 +108,8 @@ The official sheets are copyrighted and are not distributed with the module. To 
 2. In the export dialog, next to the official sheet you want, click **Choose file…**, then upload or
    browse to the PDF you downloaded.
 3. That layout is now a selectable option and stays available for future exports.
+
+![The export dialog before an official sheet has been provided](docs/img/ExportCharacterSheetUI-MissingOfficialCharacterSheets.png)
 
 ---
 
@@ -133,7 +126,7 @@ detail than a printed sheet can hold. The module handles this gracefully:
 
 If you ever suspect something is missing, open the browser console (press
 **F12**) after generating a sheet. Any content that could not fit is reported
-there.
+there. If you hit this, please open a GitHub issue so I can take a look.
 
 ---
 
@@ -157,9 +150,7 @@ normal browser download, so anything that blocks downloads will block it too.
 
 ## Support and feedback
 
-This module is developed by **Iain Fielding** (Discord: _Sogrom_).
-
-Bug reports and suggestions are welcome. Simply log them into the Github Issues. When reporting a problem, it helps to include the sheet layout you were using (2024 or 2014) and any messages from the
+Bug reports and suggestions are welcome. Just log them in GitHub Issues. When reporting a problem, it helps to include the sheet layout you were using (2024 or 2014) and any messages from the
 browser console.
 
 ---
