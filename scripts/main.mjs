@@ -207,6 +207,7 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
 
     async _renderHTML() {
       const L = key => game.i18n.localize(key);
+      const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
       const badge = (tone, key) => `<span class="sdpdf-badge sdpdf-badge--${tone}">${L(key)}</span>`;
 
       // One card per layout: a selectable radio card when it can be generated, or a
@@ -222,6 +223,19 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
           const checked = (key === this.selected) ? " checked" : "";
           const tone = official ? "official" : "ready";
           const badgeKey = official ? "SDPDF.Export.BadgeOfficial" : "SDPDF.Export.BadgeReady";
+          // A supplied official sheet shows the file it points at plus a "Change" control, so a
+          // wrong pick can be re-pointed here (the Browse button on the locked card is gone once
+          // a file is set). The button reuses the same browse action as the locked card.
+          let fileRow = "";
+          if ( official ) {
+            const filePath = game.settings.get(MODULE_ID, official.setting);
+            const fileName = filePath.split(/[\\/]/).pop();
+            fileRow = `<span class="sdpdf-card-file">
+              <i class="fa-solid fa-paperclip"></i>
+              <span class="sdpdf-card-filename" title="${esc(filePath)}">${esc(fileName)}</span>
+              <button type="button" class="sdpdf-card-change" data-action="browse" data-key="${key}">${L("SDPDF.Export.Change")}</button>
+            </span>`;
+          }
           return `<label class="sdpdf-card">
             <input type="radio" name="template" value="${key}"${checked}>
             ${icon}
@@ -231,6 +245,7 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
                 ${badge(tone, badgeKey)}
               </span>
               <span class="sdpdf-card-desc">${desc}</span>
+              ${fileRow}
             </span>
             <span class="sdpdf-card-check"><i class="fa-solid fa-circle-check"></i></span>
           </label>`;
@@ -260,8 +275,7 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
           <div class="sdpdf-options">${group.keys.map(card).join("")}</div>
         </section>`).join("");
 
-      const name = String(this.actor?.name ?? "")
-        .replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      const name = esc(this.actor?.name);
 
       return `<header class="sdpdf-hero">
           <span class="sdpdf-hero-icon"><i class="fa-solid fa-file-pdf"></i></span>

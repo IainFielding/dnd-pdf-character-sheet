@@ -28,12 +28,12 @@ const PDFLib = require("../lib/pdf-lib.min.js");
 const { PDFDocument, StandardFonts, rgb, TextAlignment } = PDFLib;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-// WHITE_BG=1 renders the identical sheet on a clean white page instead of aged parchment.
-const WHITE = process.env.WHITE_BG === "1" || process.env.WHITE_BG === "true";
-// Writes the real template by default (a "-White" variant in white mode); set OUT_PDF to override.
+// The sheet renders on a clean white page by default; set WHITE_BG=0 for the aged-parchment variant.
+const WHITE = !(process.env.WHITE_BG === "0" || process.env.WHITE_BG === "false");
+// Writes the real (white) template by default; the parchment variant goes to a "-Parchment" file.
 const OUT = process.env.OUT_PDF
   ? path.resolve(process.env.OUT_PDF)
-  : path.resolve(HERE, `../templates/DnD_Fantasy_2024_Character-Sheet${WHITE ? "-White" : ""}.pdf`);
+  : path.resolve(HERE, `../templates/DnD_Fantasy_2024_Character-Sheet${WHITE ? "" : "-Parchment"}.pdf`);
 
 /** Push-button field that receives the actor portrait (not part of the 2024 field map). */
 export const PORTRAIT_FIELD = "CHARACTER IMAGE";
