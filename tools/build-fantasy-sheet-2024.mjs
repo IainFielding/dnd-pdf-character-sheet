@@ -28,12 +28,12 @@ const PDFLib = require("../lib/pdf-lib.min.js");
 const { PDFDocument, StandardFonts, rgb, TextAlignment } = PDFLib;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-// WHITE_BG=1 renders the identical sheet on a clean white page instead of aged parchment.
-const WHITE = process.env.WHITE_BG === "1" || process.env.WHITE_BG === "true";
-// Writes the real template by default (a "-White" variant in white mode); set OUT_PDF to override.
+// The sheet renders on a clean white page by default; set WHITE_BG=0 for the aged-parchment variant.
+const WHITE = !(process.env.WHITE_BG === "0" || process.env.WHITE_BG === "false");
+// Writes the real (white) template by default; the parchment variant goes to a "-Parchment" file.
 const OUT = process.env.OUT_PDF
   ? path.resolve(process.env.OUT_PDF)
-  : path.resolve(HERE, `../templates/DnD_Fantasy_2024_Character-Sheet${WHITE ? "-White" : ""}.pdf`);
+  : path.resolve(HERE, `../templates/DnD_Fantasy_2024_Character-Sheet${WHITE ? "" : "-Parchment"}.pdf`);
 
 /** Push-button field that receives the actor portrait (not part of the 2024 field map). */
 export const PORTRAIT_FIELD = "CHARACTER IMAGE";
@@ -261,13 +261,15 @@ class Sheet {
   }
 
   /** A hand-drawn labelled well: micro-label above a sketchy field box. Returns the field. */
-  well(name, label, x, top, w, h, { labelAlign = "left", fieldAlign = "left", size, multiline = false } = {}) {
+  well(name, label, x, top, w, h, { labelAlign = "left", fieldAlign = "left", size, multiline = false, fieldDy = 0 } = {}) {
     if ( label ) this.micro(label, labelAlign === "center" ? x + w / 2 : x, top, { align: labelAlign });
     const boxTop = top + (label ? 8 : 0);
     const boxH = h - (label ? 8 : 0);
     this.rect(x, boxTop, w, boxH, { fill: FIELD_BG });
     this.roughRect(x, boxTop, w, boxH, { width: 0.8, rough: 0.9 });
-    return this.textField(name, x + 3, boxTop + 1, w - 6, boxH - 2, { size, align: fieldAlign, multiline });
+    // fieldDy nudges only the text field (not the drawn box); negative moves the text up. Used
+    // where the font size approaches the box height and glyphs otherwise sit low against the rule.
+    return this.textField(name, x + 3, boxTop + 1 + fieldDy, w - 6, boxH - 2, { size, align: fieldAlign, multiline });
   }
 }
 
@@ -463,7 +465,7 @@ function buildPage1(S) {
   S.micro("PORTRAIT", pX + pS / 2, pTop + pS + 3, { align: "center", size: 5, opacity: 0.7 });
 
   // Identity wells (left of portrait)
-  S.well(FIELDS.characterName, "CHARACTER NAME", 34, 66, 430, 24, { size: 15 });
+  S.well(FIELDS.characterName, "CHARACTER NAME", 34, 66, 430, 24, { size: 15, fieldDy: -3 });
   S.well(FIELDS.class, "CLASS & LEVEL", 34, 100, 214, 24);
   S.well(FIELDS.subclass, "SUBCLASS", 254, 100, 210, 24);
   S.well(FIELDS.species, "SPECIES", 34, 130, 130, 24);
@@ -490,9 +492,13 @@ function buildPage1(S) {
     S.txt(titleCase(meta.full), bX + 52, sTop + 2.5, { size: 8, font: "serif", color: INK });
     sTop += 15.5;
   }
+  // Species Traits usually holds 1-4 short traits; Feats grows past level 1 (a character can hold
+  // several ASI/general feats plus fighting styles). Give the two boxes an even split of the sidebar
+  // rather than a fat fixed Species box, so mid-level characters' feats don't overflow (see the
+  // starved-Feats fault this replaced). Both boxes keep an 8pt gap and share the same column bottom.
   let btTop = S.banner(bX, sTop + 6, bW, "SPECIES TRAITS");
-  fantasyBox(S, FIELDS.speciesTraits, bX, btTop, bW, 92);
-  let feTop = S.banner(bX, btTop + 100, bW, "FEATS");
+  fantasyBox(S, FIELDS.speciesTraits, bX, btTop, bW, 56);
+  let feTop = S.banner(bX, btTop + 64, bW, "FEATS");
   fantasyBox(S, FIELDS.feats, bX, feTop, bW, 474 - feTop);
 
   /* ---- Column C: Skills ---- */

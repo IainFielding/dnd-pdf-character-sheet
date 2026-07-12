@@ -275,6 +275,50 @@
   margin-top: 0.2rem;
 }
 
+/* The file a supplied official sheet points at, with a "Change" control to re-point it. */
+.sdpdf-export-dialog .sdpdf-card-file {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--sdpdf-muted);
+  min-width: 0;
+}
+
+.sdpdf-export-dialog .sdpdf-card-file > i {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+.sdpdf-export-dialog .sdpdf-card-filename {
+  flex: 0 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--sdpdf-font-mono, monospace);
+}
+
+.sdpdf-export-dialog .sdpdf-card-change {
+  flex: 0 0 auto;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--sdpdf-line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sdpdf-accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.sdpdf-export-dialog .sdpdf-card-change:hover {
+  color: var(--sdpdf-gold-bright);
+  border-color: var(--sdpdf-line-2);
+}
+
 /* ---------------------------------------------- Badges */
 
 .sdpdf-export-dialog .sdpdf-badge {
@@ -368,6 +412,7 @@
 @media (prefers-reduced-motion: reduce) {
   .sdpdf-export-dialog .sdpdf-btn,
   .sdpdf-export-dialog .sdpdf-card,
+  .sdpdf-export-dialog .sdpdf-card-change,
   .sdpdf-export-dialog .sdpdf-card-check {
     transition: none;
   }

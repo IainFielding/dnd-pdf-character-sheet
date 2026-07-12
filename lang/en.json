@@ -23,6 +23,7 @@
   "SDPDF.Export.Desc2014": "The official Wizards of the Coast 2014 sheet. Copyrighted, so you point the module at your own copy.",
   "SDPDF.Export.Confirm": "Export",
   "SDPDF.Export.Browse": "Choose file…",
+  "SDPDF.Export.Change": "Change",
   "SDPDF.Export.Download": "Download the official PDF",
   "SDPDF.Export.NotProvided": "This official sheet is copyrighted and cannot be bundled with the module. Download your own copy, upload it to Foundry, then browse to it here.",
   "SDPDF.Export.MissingOfficial": "That official sheet has not been provided yet. Use the export dialog to download and select it first."
