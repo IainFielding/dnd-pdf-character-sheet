@@ -9,7 +9,7 @@ The module ships with five character sheets fully mapped: the official D&D 2014 
 
 ### Official D&D character sheets
 
-Full support for both the official **D&D 2014** and **D&D 2024** character sheets. Due to licensing and copyright rules I can't bundle the official sheets in the module, but I've fully mapped both of them. You just need to upload your own copy into your Foundry VTT server.
+Full support for both the official **D&D 2014** and **D&D 2024** character sheets. Due to licensing and copyright rules I can't bundle the official sheets in the module, but I've fully mapped both of them and provide the links so you can download the character sheet and then upload into your Foundry VTT server so this module can use it.
 
 ### Original character sheets
 
