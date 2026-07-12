@@ -490,9 +490,13 @@ function buildPage1(S) {
     S.txt(titleCase(meta.full), bX + 52, sTop + 2.5, { size: 8, font: "serif", color: INK });
     sTop += 15.5;
   }
+  // Species Traits usually holds 1-4 short traits; Feats grows past level 1 (a character can hold
+  // several ASI/general feats plus fighting styles). Give the two boxes an even split of the sidebar
+  // rather than a fat fixed Species box, so mid-level characters' feats don't overflow (see the
+  // starved-Feats fault this replaced). Both boxes keep an 8pt gap and share the same column bottom.
   let btTop = S.banner(bX, sTop + 6, bW, "SPECIES TRAITS");
-  fantasyBox(S, FIELDS.speciesTraits, bX, btTop, bW, 92);
-  let feTop = S.banner(bX, btTop + 100, bW, "FEATS");
+  fantasyBox(S, FIELDS.speciesTraits, bX, btTop, bW, 56);
+  let feTop = S.banner(bX, btTop + 64, bW, "FEATS");
   fantasyBox(S, FIELDS.feats, bX, feTop, bW, 474 - feTop);
 
   /* ---- Column C: Skills ---- */

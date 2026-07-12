@@ -385,12 +385,14 @@ function buildPage1(S) {
     S.txt(titleCase(label), bX + 52, sTop + 2, { size: 8, font: "reg", color: INK });
     sTop += 15;
   }
-  // Species Traits + Feats fill the rest of the column
+  // Species Traits + Feats fill the rest of the column. Species usually holds 1-4 short traits while
+  // Feats grows past level 1, so split the space evenly instead of giving Species a fat fixed box that
+  // starves Feats (the overflow fault this replaced). Both keep an 8pt gap and share the column bottom.
   let btTop = sTop + 8;
   btTop = S.sectionHead(bX, btTop, bW, "SPECIES TRAITS");
-  S.rect(bX, btTop, bW, 96, { fill: FIELD_BG, stroke: LINE_SOFT, lineWidth: 0.6 });
-  S.textField(FIELDS.speciesTraits, bX + 3, btTop + 2, bW - 6, 92, { multiline: true, size: 8 });
-  let feTop = btTop + 104;
+  S.rect(bX, btTop, bW, 60, { fill: FIELD_BG, stroke: LINE_SOFT, lineWidth: 0.6 });
+  S.textField(FIELDS.speciesTraits, bX + 3, btTop + 2, bW - 6, 56, { multiline: true, size: 8 });
+  let feTop = btTop + 68;
   feTop = S.sectionHead(bX, feTop, bW, "FEATS");
   const feH = 466 - feTop;
   S.rect(bX, feTop, bW, feH, { fill: FIELD_BG, stroke: LINE_SOFT, lineWidth: 0.6 });
