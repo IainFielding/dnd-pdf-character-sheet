@@ -8,6 +8,9 @@
   "scripts": [
     "lib/pdf-lib.min.js"
   ],
+  "styles": [
+    "styles/sdpdf.css"
+  ],
   "languages": [
     {
       "lang": "en",

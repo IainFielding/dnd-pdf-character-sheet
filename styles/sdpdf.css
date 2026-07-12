@@ -1,0 +1,377 @@
+/* -------------------------------------------------------------------------- */
+/*  Export dialog — "Arcane Midnight" branding                                */
+/*                                                                            */
+/*  A windowed ApplicationV2 layout picker, themed to match the Sogrom D&D    */
+/*  character-creator: dark violet-tinted panels, a warm-gold selection glow, */
+/*  and a condensed serif for headings. Everything is scoped under            */
+/*  .sdpdf-export-dialog so it never leaks onto other Foundry windows, and    */
+/*  all colours are self-contained tokens so the look holds whether or not    */
+/*  the creator module is installed.                                          */
+/* -------------------------------------------------------------------------- */
+
+.sdpdf-export-dialog {
+  /* Surfaces — near-black cool purples. */
+  --sdpdf-bg: #0f0e15;
+  --sdpdf-panel: #16151f;
+  --sdpdf-panel-2: #1d1b28;
+  --sdpdf-line: #2a2836;
+  --sdpdf-line-2: #3c3950;
+
+  /* Text. */
+  --sdpdf-text: #d4d1e0;
+  --sdpdf-muted: #928fa3;
+
+  /* Accent — the creator's arcane violet, used for icons and the interactive edge. */
+  --sdpdf-accent: #9180f2;
+  --sdpdf-accent-soft: rgba(145, 128, 242, 0.18);
+  --sdpdf-accent-glow: rgba(145, 128, 242, 0.38);
+
+  /* Selection / "you are here" — warm parchment gold. */
+  --sdpdf-gold: #c8a24e;
+  --sdpdf-gold-bright: #e8cd84;
+  --sdpdf-gold-glow: rgba(200, 162, 78, 0.30);
+  --sdpdf-select-soft: rgba(200, 162, 78, 0.13);
+
+  /* Modesto Condensed ships with Foundry, so headings render on-brand even
+     without the creator's Cinzel; the rest are graceful serif fallbacks. */
+  --sdpdf-font-head: "Cinzel", "Modesto Condensed", "Palatino Linotype", Georgia, serif;
+  --sdpdf-radius: 10px;
+}
+
+/* ---------------------------------------------- Window frame */
+
+.sdpdf-export-dialog .window-header {
+  background: linear-gradient(180deg, #16151f, #100f17);
+  border-bottom: 1px solid var(--sdpdf-line);
+}
+
+.sdpdf-export-dialog .window-title {
+  color: var(--sdpdf-gold-bright);
+  font-family: var(--sdpdf-font-head);
+  letter-spacing: 0.03em;
+}
+
+.sdpdf-export-dialog .window-header .header-control i {
+  color: var(--sdpdf-text);
+}
+
+/* The content pane holds our hero + option cards + footer. The faint violet
+   auras top and bottom are baked straight into the background so no extra
+   stacking layer is needed. */
+.sdpdf-export-dialog .window-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.9rem 1rem 1rem;
+  color: var(--sdpdf-text);
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(145, 128, 242, 0.14), transparent 52%),
+    radial-gradient(100% 60% at 50% 115%, rgba(145, 128, 242, 0.09), transparent 52%),
+    var(--sdpdf-bg);
+}
+
+/* ---------------------------------------------- Hero banner */
+
+.sdpdf-export-dialog .sdpdf-hero {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.15rem 0.1rem 0.55rem;
+  border-bottom: 1px solid var(--sdpdf-line);
+}
+
+.sdpdf-export-dialog .sdpdf-hero-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 10px;
+  border: 1px solid var(--sdpdf-line-2);
+  background: linear-gradient(180deg, var(--sdpdf-panel-2), var(--sdpdf-panel));
+  color: var(--sdpdf-gold-bright);
+  font-size: 1.35rem;
+  box-shadow: 0 0 16px -6px var(--sdpdf-gold-glow);
+}
+
+.sdpdf-export-dialog .sdpdf-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.sdpdf-export-dialog .sdpdf-hero-title {
+  font-family: var(--sdpdf-font-head);
+  font-size: 1.2rem;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  color: var(--sdpdf-gold-bright);
+}
+
+.sdpdf-export-dialog .sdpdf-hero-sub {
+  font-size: 0.82rem;
+  color: var(--sdpdf-muted);
+}
+
+/* ---------------------------------------------- Edition groups */
+
+.sdpdf-export-dialog .sdpdf-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* A small caps-tracked label with a rule trailing off to the right, marking the
+   start of each rules-edition section. */
+.sdpdf-export-dialog .sdpdf-group-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  border: none;
+  font-family: var(--sdpdf-font-head);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sdpdf-gold);
+}
+
+.sdpdf-export-dialog .sdpdf-group-title::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: linear-gradient(90deg, var(--sdpdf-line-2), transparent);
+}
+
+/* ---------------------------------------------- Option cards */
+
+.sdpdf-export-dialog .sdpdf-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.sdpdf-export-dialog .sdpdf-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--sdpdf-line);
+  border-radius: var(--sdpdf-radius);
+  background: var(--sdpdf-panel);
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sdpdf-export-dialog label.sdpdf-card {
+  cursor: pointer;
+}
+
+.sdpdf-export-dialog label.sdpdf-card:hover {
+  border-color: var(--sdpdf-line-2);
+  background: var(--sdpdf-panel-2);
+}
+
+/* The radio drives selection but is visually replaced by the card + tick. */
+.sdpdf-export-dialog .sdpdf-card input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  margin: 0;
+}
+
+.sdpdf-export-dialog .sdpdf-card:has(input:checked) {
+  border-color: var(--sdpdf-gold);
+  background: var(--sdpdf-select-soft);
+  box-shadow: 0 0 0 1px var(--sdpdf-gold), 0 0 16px -2px var(--sdpdf-gold-glow);
+}
+
+.sdpdf-export-dialog .sdpdf-card:focus-within {
+  outline: 2px solid var(--sdpdf-accent);
+  outline-offset: 1px;
+}
+
+.sdpdf-export-dialog .sdpdf-card-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--sdpdf-line);
+  background: var(--sdpdf-panel-2);
+  color: var(--sdpdf-accent);
+  font-size: 1.1rem;
+}
+
+.sdpdf-export-dialog .sdpdf-card:has(input:checked) .sdpdf-card-icon {
+  border-color: var(--sdpdf-gold);
+  color: var(--sdpdf-gold-bright);
+}
+
+.sdpdf-export-dialog .sdpdf-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sdpdf-export-dialog .sdpdf-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.sdpdf-export-dialog .sdpdf-card-name {
+  font-family: var(--sdpdf-font-head);
+  font-size: 1.02rem;
+  letter-spacing: 0.01em;
+  color: #efedf6;
+}
+
+.sdpdf-export-dialog .sdpdf-card-desc {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--sdpdf-muted);
+}
+
+.sdpdf-export-dialog .sdpdf-card-desc a {
+  color: var(--sdpdf-accent);
+  text-decoration: underline;
+}
+
+.sdpdf-export-dialog .sdpdf-card-desc a:hover {
+  color: var(--sdpdf-gold-bright);
+}
+
+.sdpdf-export-dialog .sdpdf-card-check {
+  flex: 0 0 auto;
+  align-self: center;
+  color: var(--sdpdf-gold);
+  font-size: 1.15rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.sdpdf-export-dialog .sdpdf-card:has(input:checked) .sdpdf-card-check {
+  opacity: 1;
+}
+
+/* An official sheet the user has not supplied — dashed, muted, non-selectable. */
+.sdpdf-export-dialog .sdpdf-card.is-locked {
+  border-style: dashed;
+}
+
+.sdpdf-export-dialog .sdpdf-card.is-locked .sdpdf-card-icon {
+  color: var(--sdpdf-muted);
+}
+
+.sdpdf-export-dialog .sdpdf-card-actions {
+  margin-top: 0.2rem;
+}
+
+/* ---------------------------------------------- Badges */
+
+.sdpdf-export-dialog .sdpdf-badge {
+  flex: 0 0 auto;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sdpdf-export-dialog .sdpdf-badge--ready {
+  color: #b7e6c4;
+  background: rgba(74, 176, 112, 0.14);
+  border-color: rgba(74, 176, 112, 0.35);
+}
+
+.sdpdf-export-dialog .sdpdf-badge--official {
+  color: var(--sdpdf-gold-bright);
+  background: var(--sdpdf-gold-glow);
+  border-color: rgba(200, 162, 78, 0.5);
+}
+
+.sdpdf-export-dialog .sdpdf-badge--locked {
+  color: #f0c79a;
+  background: rgba(224, 128, 64, 0.12);
+  border-color: rgba(224, 128, 64, 0.32);
+}
+
+/* ---------------------------------------------- Buttons */
+
+.sdpdf-export-dialog .sdpdf-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.15rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--sdpdf-line);
+}
+
+.sdpdf-export-dialog .sdpdf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+  width: auto;
+  min-height: 2.4rem;
+  padding: 0.55rem 1.25rem;
+  border-radius: 9px;
+  border: 1px solid var(--sdpdf-line);
+  background: var(--sdpdf-panel-2);
+  color: var(--sdpdf-text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: filter 0.2s ease, border-color 0.2s ease, transform 0.08s ease;
+}
+
+.sdpdf-export-dialog .sdpdf-btn:hover:not(:disabled) {
+  filter: brightness(1.12);
+  border-color: var(--sdpdf-line-2);
+}
+
+.sdpdf-export-dialog .sdpdf-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Export — the climactic action gets the reserved gold. */
+.sdpdf-export-dialog .sdpdf-btn-primary {
+  padding-inline: 1.5rem;
+  background: linear-gradient(180deg, var(--sdpdf-gold-bright), var(--sdpdf-gold));
+  border-color: var(--sdpdf-gold);
+  color: #2a200a;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 0 1px var(--sdpdf-gold-glow), 0 4px 14px var(--sdpdf-gold-glow);
+}
+
+.sdpdf-export-dialog .sdpdf-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.sdpdf-export-dialog .sdpdf-btn-ghost {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sdpdf-export-dialog .sdpdf-btn,
+  .sdpdf-export-dialog .sdpdf-card,
+  .sdpdf-export-dialog .sdpdf-card-check {
+    transition: none;
+  }
+  .sdpdf-export-dialog .sdpdf-btn:active:not(:disabled) {
+    transform: none;
+  }
+}

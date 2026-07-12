@@ -7,17 +7,51 @@ import {
 
 const MODULE_ID = "sogrom-dnd5e-character-sheet-pdf";
 const TEMPLATE_DIR = `modules/${MODULE_ID}/templates`;
-const DEFAULT_TEMPLATE = "2024";
+const DEFAULT_TEMPLATE = "fantasy2024";
 
 /**
- * Resolve a template setting key to its file path and the filler class that understands its layout.
+ * The two official Wizards of the Coast sheets. Their PDFs are copyrighted, so this module cannot
+ * bundle them; instead the user downloads each from D&D Beyond and points the matching client
+ * setting at their own copy. Each entry drives the export dialog (label, download link, which
+ * setting stores the user's file); {@link templateConfig} pairs the key with its filler class.
+ * @type {Record<string, {label: string, url: string, setting: string}>}
+ */
+const OFFICIAL_TEMPLATES = {
+  "2024": {
+    label: "SDPDF.Settings.Template.Choice2024",
+    url: "https://media.dndbeyond.com/compendium-images/free-rules/ph/character-sheet.pdf",
+    setting: "officialPath2024"
+  },
+  "2014": {
+    label: "SDPDF.Settings.Template.Choice2014",
+    url: "https://media.dndbeyond.com/compendium-images/marketing/dnd_5e_charactersheet_formfillable.pdf",
+    setting: "officialPath2014"
+  }
+};
+
+/**
+ * Resolve a template key to its PDF file path and the filler class that understands its layout.
  * Looked up when a PDF is generated rather than at module load, because the filler classes are
  * defined further down this file and do not exist yet while the top of the file is evaluating.
- * @param {string} key  "2024" or "2014".
+ * The two Fan Content layouts ship with the module; the official 2014/2024 sheets cannot be
+ * distributed, so their path comes from the client setting the user pointed at their own download.
+ * @param {string} key  "2024", "2014", "fan2024" or "fantasy2024".
+ * @returns {{path: string, Filler: typeof SheetFiller, official: boolean}}
  */
 function templateConfig(key) {
-  if ( key === "2014" ) return { path: `${TEMPLATE_DIR}/DnD_2014_Character-Sheet.pdf`, Filler: SheetFiller };
-  return { path: `${TEMPLATE_DIR}/DnD_2024_Character-Sheet.pdf`, Filler: Sheet2024Filler };
+  const official = OFFICIAL_TEMPLATES[key];
+  if ( official ) {
+    const Filler = (key === "2014") ? SheetFiller : Sheet2024Filler;
+    return { path: game.settings.get(MODULE_ID, official.setting), Filler, official: true };
+  }
+  if ( key === "fan2024" ) return { path: `${TEMPLATE_DIR}/DnD_Fan_2024_Character-Sheet.pdf`, Filler: FanSheet2024Filler, official: false };
+  // Our own hand-drawn Fantasy Sheet for the 2014 rules: it reuses the 2014 field names, so the base
+  // 2014 SheetFiller (which already embeds the portrait button) populates it unchanged.
+  if ( key === "fantasy2014" ) return { path: `${TEMPLATE_DIR}/DnD_Fantasy_2014_Character-Sheet.pdf`, Filler: SheetFiller, official: false };
+  // Fantasy Sheet (2024), the {@link DEFAULT_TEMPLATE}. An unrecognised key also lands here, so a
+  // stale or malformed setting falls back to the default layout rather than failing to export.
+  if ( key !== DEFAULT_TEMPLATE ) console.warn(`${MODULE_ID} | Unknown template "${key}", using ${DEFAULT_TEMPLATE}`);
+  return { path: `${TEMPLATE_DIR}/DnD_Fantasy_2024_Character-Sheet.pdf`, Filler: FanSheet2024Filler, official: false };
 }
 
 /* -------------------------------------------- */
@@ -27,23 +61,36 @@ function templateConfig(key) {
 // Hooks only exist inside Foundry; the guard keeps this module importable from test harnesses.
 if ( globalThis.Hooks ) {
   Hooks.once("init", () => {
+    // Remembers the layout chosen last time so the export dialog can pre-select it. Not shown in the
+    // settings UI (config: false) because the choice is made in the export dialog, where the two
+    // official layouts only appear once the user has supplied their own copy of the PDF.
     game.settings.register(MODULE_ID, "template", {
-      name: "SDPDF.Settings.Template.Name",
-      hint: "SDPDF.Settings.Template.Hint",
       scope: "client",
-      config: true,
+      config: false,
       type: String,
-      choices: {
-        "2024": "SDPDF.Settings.Template.Choice2024",
-        "2014": "SDPDF.Settings.Template.Choice2014"
-      },
       default: DEFAULT_TEMPLATE
     });
 
+    // Paths to the user's own copies of the copyrighted official sheets, set via the file browser in
+    // the export dialog. Empty until supplied, which is what hides those options in the dialog.
+    for ( const { setting } of Object.values(OFFICIAL_TEMPLATES) ) {
+      game.settings.register(MODULE_ID, setting, {
+        scope: "client",
+        config: false,
+        type: String,
+        default: ""
+      });
+    }
+
     const module = game.modules.get(MODULE_ID);
     module.api = {
-      generatePdf: actor => generatePdf(actor),
-      generateDebugPdf: template => generateDebugPdf(template)
+      // Open the layout picker, then generate the chosen sheet.
+      promptPdf: actor => PdfExportDialog.open(actor),
+      // Generate straight to a chosen (or the remembered) layout, skipping the dialog.
+      generatePdf: (actor, template) => generatePdf(actor, template),
+      // Developer tooling, namespaced off the main surface so it reads as intentional rather than
+      // part of the supported API. See {@link generateDebugPdf}.
+      debug: { generateFieldMap: template => generateDebugPdf(template) }
     };
   });
 
@@ -51,7 +98,6 @@ if ( globalThis.Hooks ) {
   Hooks.on("getActorContextOptions", (application, options) => {
     options.push({
       name: "SDPDF.ContextMenuLabel",
-      label: "SDPDF.ContextMenuLabel",
       icon: '<i class="fa-solid fa-file-pdf"></i>',
       condition: li => {
         const actor = game.actors.get(li.dataset.entryId);
@@ -59,7 +105,7 @@ if ( globalThis.Hooks ) {
       },
       callback: li => {
         const actor = game.actors.get(li.dataset.entryId);
-        if ( actor ) generatePdf(actor);
+        if ( actor ) PdfExportDialog.open(actor);
       }
     });
   });
@@ -78,9 +124,240 @@ if ( globalThis.Hooks ) {
       icon: "fa-solid fa-file-pdf",
       label: "SDPDF.ContextMenuLabel",
       action: "generatePdfCharacterSheet",
-      onClick: () => generatePdf(actor)
+      onClick: () => PdfExportDialog.open(actor)
     });
   });
+}
+
+/* -------------------------------------------- */
+/*  Export dialog                               */
+/* -------------------------------------------- */
+
+/**
+ * The layouts offered by the export dialog, grouped by rules edition and shown in this order. Within
+ * each group the official WotC sheet comes first (a download/browse prompt until the user supplies
+ * their own copy), followed by the bundled Fantasy/Fan sheets. The 2024 group leads because the
+ * default layout ({@link DEFAULT_TEMPLATE}) lives there.
+ */
+const EXPORT_GROUPS = [
+  { label: "SDPDF.Export.Group2024", keys: ["2024", "fantasy2024", "fan2024"] },
+  { label: "SDPDF.Export.Group2014", keys: ["2014", "fantasy2014"] }
+];
+
+/** Non-official layouts always available for export, keyed by the same layout key. */
+const BUNDLED_LABELS = {
+  fantasy2024: "SDPDF.Settings.Template.ChoiceFantasy2024",
+  fantasy2014: "SDPDF.Settings.Template.ChoiceFantasy2014",
+  fan2024: "SDPDF.Settings.Template.ChoiceFan2024"
+};
+
+/**
+ * Presentation metadata for each layout card in the export dialog: the Font Awesome icon that
+ * fronts the card, the localization key for its one-line description, and the badge tone
+ * ("ready" for the bundled sheets, "official" for the WotC ones). Kept separate from the
+ * label/availability logic so the visuals can be tweaked without touching the picker behaviour.
+ */
+const LAYOUT_META = {
+  fantasy2024: { icon: "fa-dragon", desc: "SDPDF.Export.DescFantasy2024", badge: "ready" },
+  fantasy2014: { icon: "fa-shield-halved", desc: "SDPDF.Export.DescFantasy2014", badge: "ready" },
+  fan2024:     { icon: "fa-feather-pointed", desc: "SDPDF.Export.DescFan2024", badge: "ready" },
+  "2024":      { icon: "fa-scroll", desc: "SDPDF.Export.Desc2024", badge: "official" },
+  "2014":      { icon: "fa-book-open", desc: "SDPDF.Export.Desc2014", badge: "official" }
+};
+
+/**
+ * ApplicationV2 window shown when the user asks to export a sheet. It lists the layouts they can
+ * generate — the two bundled Fan Content sheets always, plus either official sheet the user has
+ * supplied a copy of — and, for an official sheet not yet supplied, a download link and a file
+ * browser button so they can point the module at their own copy. Only defined inside Foundry, where
+ * the ApplicationV2 base class exists; the module is also imported by the Node test harness, which
+ * has no `foundry` global.
+ */
+let PdfExportDialog;
+if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
+  PdfExportDialog = class PdfExportDialog extends foundry.applications.api.ApplicationV2 {
+    /**
+     * @param {Actor} actor  Character actor whose sheet will be exported.
+     * @param {object} [options]
+     */
+    constructor(actor, options={}) {
+      super(options);
+      this.actor = actor;
+      // The layout to pre-select: the one remembered from last time if it is currently available,
+      // otherwise the default. Updated as the user browses for or picks a layout.
+      this.selected = game.settings.get(MODULE_ID, "template");
+      if ( !this.#available(this.selected) ) this.selected = DEFAULT_TEMPLATE;
+    }
+
+    /** Open the export dialog for an actor. */
+    static open(actor) {
+      if ( !actor ) return;
+      new PdfExportDialog(actor).render(true);
+    }
+
+    /* -------------------------------------------- */
+
+    /** Whether a layout key can be generated right now (bundled sheets always; official only if supplied). */
+    #available(key) {
+      const official = OFFICIAL_TEMPLATES[key];
+      return official ? !!game.settings.get(MODULE_ID, official.setting) : (key in BUNDLED_LABELS);
+    }
+
+    /* -------------------------------------------- */
+
+    async _renderHTML() {
+      const L = key => game.i18n.localize(key);
+      const badge = (tone, key) => `<span class="sdpdf-badge sdpdf-badge--${tone}">${L(key)}</span>`;
+
+      // One card per layout: a selectable radio card when it can be generated, or a
+      // download/browse prompt for an official sheet the user has not supplied yet.
+      const card = key => {
+        const official = OFFICIAL_TEMPLATES[key];
+        const meta = LAYOUT_META[key];
+        const label = L(official ? official.label : BUNDLED_LABELS[key]);
+        const desc = L(meta.desc);
+        const icon = `<span class="sdpdf-card-icon"><i class="fa-solid ${meta.icon}"></i></span>`;
+
+        if ( this.#available(key) ) {
+          const checked = (key === this.selected) ? " checked" : "";
+          const tone = official ? "official" : "ready";
+          const badgeKey = official ? "SDPDF.Export.BadgeOfficial" : "SDPDF.Export.BadgeReady";
+          return `<label class="sdpdf-card">
+            <input type="radio" name="template" value="${key}"${checked}>
+            ${icon}
+            <span class="sdpdf-card-body">
+              <span class="sdpdf-card-head">
+                <span class="sdpdf-card-name">${label}</span>
+                ${badge(tone, badgeKey)}
+              </span>
+              <span class="sdpdf-card-desc">${desc}</span>
+            </span>
+            <span class="sdpdf-card-check"><i class="fa-solid fa-circle-check"></i></span>
+          </label>`;
+        }
+
+        return `<div class="sdpdf-card is-locked">
+          ${icon}
+          <span class="sdpdf-card-body">
+            <span class="sdpdf-card-head">
+              <span class="sdpdf-card-name">${label}</span>
+              ${badge("locked", "SDPDF.Export.BadgeLocked")}
+            </span>
+            <span class="sdpdf-card-desc">${L("SDPDF.Export.NotProvided")}
+              <a href="${official.url}" target="_blank" rel="noopener">${L("SDPDF.Export.Download")}</a>
+            </span>
+            <span class="sdpdf-card-actions">
+              <button type="button" class="sdpdf-btn sdpdf-btn-ghost" data-action="browse" data-key="${key}">
+                <i class="fa-solid fa-folder-open"></i> ${L("SDPDF.Export.Browse")}
+              </button>
+            </span>
+          </span>
+        </div>`;
+      };
+
+      const groups = EXPORT_GROUPS.map(group => `<section class="sdpdf-group">
+          <h3 class="sdpdf-group-title">${L(group.label)}</h3>
+          <div class="sdpdf-options">${group.keys.map(card).join("")}</div>
+        </section>`).join("");
+
+      const name = String(this.actor?.name ?? "")
+        .replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+      return `<header class="sdpdf-hero">
+          <span class="sdpdf-hero-icon"><i class="fa-solid fa-file-pdf"></i></span>
+          <span class="sdpdf-hero-text">
+            <span class="sdpdf-hero-title">${L("SDPDF.Export.HeroTitle")}</span>
+            <span class="sdpdf-hero-sub">${game.i18n.format("SDPDF.Export.HeroSub", { name })}</span>
+          </span>
+        </header>
+        ${groups}
+        <footer class="sdpdf-footer">
+          <button type="button" class="sdpdf-btn sdpdf-btn-ghost" data-action="cancel">
+            <i class="fa-solid fa-xmark"></i> ${L("Cancel")}
+          </button>
+          <button type="button" class="sdpdf-btn sdpdf-btn-primary" data-action="export">
+            <i class="fa-solid fa-file-arrow-down"></i> ${L("SDPDF.Export.Confirm")}
+          </button>
+        </footer>`;
+    }
+
+    /* -------------------------------------------- */
+
+    _replaceHTML(result, content) {
+      content.innerHTML = result;
+    }
+
+    /* -------------------------------------------- */
+
+    /** Read the layout the user currently has selected in the form, if any, into {@link selected}. */
+    #syncSelection() {
+      const checked = this.element?.querySelector('input[name="template"]:checked');
+      if ( checked ) this.selected = checked.value;
+    }
+
+    /* -------------------------------------------- */
+
+    /**
+     * Browse for a downloaded official-sheet PDF and, once chosen, store its path so the layout
+     * becomes an available option and re-render with it selected.
+     * @this {PdfExportDialog}
+     */
+    static async _onBrowse(_event, target) {
+      const key = target.dataset.key;
+      const official = OFFICIAL_TEMPLATES[key];
+      if ( !official ) return;
+      this.#syncSelection();
+      const current = game.settings.get(MODULE_ID, official.setting);
+      const picker = new foundry.applications.apps.FilePicker.implementation({
+        type: "any",
+        current: current || undefined,
+        callback: async path => {
+          await game.settings.set(MODULE_ID, official.setting, path);
+          this.selected = key;
+          this.render();
+        }
+      });
+      await picker.browse();
+    }
+
+    /* -------------------------------------------- */
+
+    /**
+     * Remember the chosen layout, close the dialog and generate the sheet.
+     * @this {PdfExportDialog}
+     */
+    static async _onExport() {
+      this.#syncSelection();
+      const template = this.selected;
+      await game.settings.set(MODULE_ID, "template", template);
+      const actor = this.actor;
+      await this.close();
+      generatePdf(actor, template);
+    }
+
+    /* -------------------------------------------- */
+
+    /** @this {PdfExportDialog} */
+    static _onCancel() {
+      this.close();
+    }
+
+    /* -------------------------------------------- */
+
+    // Declared last so it can reference the static action handlers defined above.
+    static DEFAULT_OPTIONS = {
+      id: "sdpdf-export-dialog",
+      tag: "div",
+      classes: ["sdpdf-export-dialog"],
+      window: { title: "SDPDF.Export.Title", icon: "fa-solid fa-file-pdf" },
+      position: { width: 540, height: "auto" },
+      actions: {
+        browse: PdfExportDialog._onBrowse,
+        export: PdfExportDialog._onExport,
+        cancel: PdfExportDialog._onCancel
+      }
+    };
+  };
 }
 
 /* -------------------------------------------- */
@@ -90,11 +367,17 @@ if ( globalThis.Hooks ) {
 /**
  * Generate a filled character sheet PDF for the given actor and offer it as a download.
  * @param {Actor} actor
+ * @param {string} [template]  Layout key ("2024", "2014", "fan2024", "fantasy2024"). Defaults to the
+ *                             layout remembered from the last export.
  */
-async function generatePdf(actor) {
+async function generatePdf(actor, template=game.settings.get(MODULE_ID, "template")) {
   try {
+    const { path, Filler, official } = templateConfig(template);
+    if ( official && !path ) {
+      ui.notifications.error(game.i18n.localize("SDPDF.Export.MissingOfficial"));
+      return;
+    }
     ui.notifications.info(game.i18n.format("SDPDF.Generating", { name: actor.name }));
-    const { path, Filler } = templateConfig(game.settings.get(MODULE_ID, "template"));
     const filler = await Filler.create(path);
     await filler.fillActor(actor);
     const bytes = await filler.save();
@@ -110,7 +393,7 @@ async function generatePdf(actor) {
  * Debug helper: writes a sequential number into every text field, checks every checkbox and
  * logs the number -> field name mapping. Pass "2024" (default) or "2014" to pick the template.
  * Run from console:
- *   game.modules.get("sogrom-dnd5e-character-sheet-pdf").api.generateDebugPdf("2024")
+ *   game.modules.get("sogrom-dnd5e-character-sheet-pdf").api.debug.generateFieldMap("2024")
  */
 async function generateDebugPdf(template=DEFAULT_TEMPLATE) {
   const { path, Filler } = templateConfig(template);
@@ -287,7 +570,7 @@ export class SheetFiller {
   /** Populate the form from a dnd5e character actor. */
   async fillActor(actor) {
     const system = actor.system;
-    await this.#fillPortrait(actor);
+    await this.embedPortrait(actor);
     this.#fillHeader(actor, system);
     this.#fillAbilitiesAndSkills(system);
     this.#fillCombat(actor, system);
@@ -301,8 +584,11 @@ export class SheetFiller {
 
   /* -------------------------------------------- */
 
-  /** Embed the actor's portrait into the "CHARACTER IMAGE" button on page 2. */
-  async #fillPortrait(actor) {
+  /**
+   * Embed the actor's portrait into the "CHARACTER IMAGE" push-button, if the template has one.
+   * Used by the 2014 sheet and the Fan Sheet (2024); templates without the button are left alone.
+   */
+  async embedPortrait(actor) {
     const src = actor.img;
     if ( !src || (src === CONST.DEFAULT_TOKEN) ) return;
     try {
@@ -321,7 +607,7 @@ export class SheetFiller {
 
   #fillHeader(actor, system) {
     const details = system.details;
-    const classes = Object.values(actor.classes ?? {}).sort((a, b) => (b.system.levels ?? 0) - (a.system.levels ?? 0));
+    const classes = sortedClasses(actor);
     const classLevel = classes.map(cls => {
       const subclass = cls.subclass?.name ? ` (${cls.subclass.name})` : "";
       return `${cls.name}${subclass} ${cls.system.levels}`;
@@ -374,15 +660,7 @@ export class SheetFiller {
     this.text(FIELDS.hpTemp, attributes.hp?.temp || "");
 
     // Hit dice: total by denomination (e.g. "4d8"), remaining count in the large box
-    const byDenom = {};
-    let remaining = 0;
-    for ( const cls of Object.values(actor.classes ?? {}) ) {
-      const denomination = cls.system.hd?.denomination ?? cls.system.hitDice ?? "d8";
-      const levels = cls.system.levels ?? 0;
-      byDenom[denomination] = (byDenom[denomination] ?? 0) + levels;
-      remaining += levels - (cls.system.hd?.spent ?? cls.system.hitDiceUsed ?? 0);
-    }
-    const total = Object.entries(byDenom).map(([denomination, count]) => `${count}${denomination}`).join(" + ");
+    const { total, remaining } = hitDice(actor);
     this.text(FIELDS.hdTotal, total);
     this.text(FIELDS.hd, remaining || "");
 
@@ -440,23 +718,12 @@ export class SheetFiller {
   /* -------------------------------------------- */
 
   #fillProficiencies(actor, system) {
-    const Trait = dnd5e?.documents?.Trait;
-    const label = (key, trait) => {
-      try {
-        return Trait?.keyLabel(key, { trait }) ?? key;
-      } catch(err) {
-        return key;
-      }
-    };
-    const list = (keys, trait) => Array.from(keys ?? []).map(k => label(k, trait));
-    const withCustom = (values, custom) => values.concat((custom ?? "").split(";").map(s => s.trim()).filter(_ => _));
-
     const traits = system.traits;
     const sections = [];
-    const languages = withCustom(list(traits.languages?.value, "languages"), traits.languages?.custom);
-    const armor = withCustom(list(traits.armorProf?.value, "armor"), traits.armorProf?.custom);
-    const weapons = withCustom(list(traits.weaponProf?.value, "weapon"), traits.weaponProf?.custom);
-    const tools = list(Object.keys(system.tools ?? {}), "tool");
+    const languages = withCustomTraits(traitLabels(traits.languages?.value, "languages"), traits.languages?.custom);
+    const armor = withCustomTraits(traitLabels(traits.armorProf?.value, "armor"), traits.armorProf?.custom);
+    const weapons = withCustomTraits(traitLabels(traits.weaponProf?.value, "weapon"), traits.weaponProf?.custom);
+    const tools = traitLabels(Object.keys(system.tools ?? {}), "tool");
     if ( languages.length ) sections.push(`Languages: ${languages.join(", ")}`);
     if ( armor.length ) sections.push(`Armor: ${armor.join(", ")}`);
     if ( weapons.length ) sections.push(`Weapons: ${weapons.join(", ")}`);
@@ -467,13 +734,7 @@ export class SheetFiller {
   /* -------------------------------------------- */
 
   #fillFeatures(actor) {
-    const groups = { class: [], race: [], background: [], feat: [], other: [] };
-    for ( const item of actor.items ) {
-      if ( item.type !== "feat" ) continue;
-      const type = item.system.type?.value;
-      (groups[type] ?? groups.other).push(item);
-    }
-    for ( const items of Object.values(groups) ) items.sort((a, b) => a.name.localeCompare(b.name));
+    const groups = groupFeats(actor);
 
     // Bold name + plain description blocks, flowing from the page 1 box into the page 2 box
     const blocks = [];
@@ -569,6 +830,14 @@ export class SheetFiller {
       const pageRef = widget.P();
       const page = this.doc.getPages().find(p => p.ref === pageRef);
       if ( !page ) return null;
+      // The feature text is drawn straight onto the page; hide the field's widget (annotation
+      // flag 2 = Hidden) so its empty appearance cannot paint over that text in viewers that
+      // render form fields opaquely. enableReadOnly keeps the (now hidden) field non-interactive.
+      try {
+        widget.dict.set(PDFLib.PDFName.of("F"), PDFLib.PDFNumber.of(2));
+      } catch(flagErr) {
+        console.warn(`${MODULE_ID} | Could not hide widget for "${name}"`, flagErr);
+      }
       field.enableReadOnly();
       return { page, rect };
     } catch(err) {
@@ -741,6 +1010,13 @@ export class SheetFiller {
  * to list the remainder.
  */
 export class Sheet2024Filler extends SheetFiller {
+  /**
+   * How to grow the single-line Tools field into its printed box. The official 2024 template ships
+   * a small single-line field, so it is repositioned and made multiline; a subclass whose template
+   * already provides a full-size multiline Tools field can override this to `null` to skip the move.
+   */
+  get toolsFieldRect() { return { y: 27, height: 24, multiline: true }; }
+
   /** Populate the form from a dnd5e character actor. */
   async fillActor(actor) {
     const system = actor.system;
@@ -759,7 +1035,7 @@ export class Sheet2024Filler extends SheetFiller {
 
   #fillHeader(actor, system) {
     const details = system.details;
-    const classes = Object.values(actor.classes ?? {}).sort((a, b) => (b.system.levels ?? 0) - (a.system.levels ?? 0));
+    const classes = sortedClasses(actor);
     const classNames = classes.map(cls => `${cls.name} ${cls.system.levels}`).join(" / ");
     const subclasses = classes.map(cls => cls.subclass?.name).filter(_ => _).join(" / ");
     const totalLevel = details.level ?? classes.reduce((sum, cls) => sum + (cls.system.levels ?? 0), 0);
@@ -812,14 +1088,8 @@ export class Sheet2024Filler extends SheetFiller {
     this.text(F24.hpTemp, attributes.hp?.temp || "");
 
     // Hit dice: max by denomination (e.g. "4d8"), spent count in the SPENT box
-    const byDenom = {};
-    let spent = 0;
-    for ( const cls of Object.values(actor.classes ?? {}) ) {
-      const denomination = cls.system.hd?.denomination ?? cls.system.hitDice ?? "d8";
-      byDenom[denomination] = (byDenom[denomination] ?? 0) + (cls.system.levels ?? 0);
-      spent += cls.system.hd?.spent ?? cls.system.hitDiceUsed ?? 0;
-    }
-    this.text(F24.hdMax, Object.entries(byDenom).map(([denomination, count]) => `${count}${denomination}`).join(" + "));
+    const { total, spent } = hitDice(actor);
+    this.text(F24.hdMax, total);
     this.text(F24.hdSpent, spent || "");
 
     const death = attributes.death ?? {};
@@ -847,17 +1117,6 @@ export class Sheet2024Filler extends SheetFiller {
   /* -------------------------------------------- */
 
   #fillProficiencies(system) {
-    const Trait = dnd5e?.documents?.Trait;
-    const label = (key, trait) => {
-      try {
-        return Trait?.keyLabel(key, { trait }) ?? key;
-      } catch(err) {
-        return key;
-      }
-    };
-    const list = (keys, trait) => Array.from(keys ?? []).map(k => label(k, trait));
-    const withCustom = (values, custom) => values.concat((custom ?? "").split(";").map(s => s.trim()).filter(_ => _));
-
     const traits = system.traits;
     const armor = new Set(traits.armorProf?.value ?? []);
     this.check(ARMOR_TRAINING_24.light, armor.has("lgt"));
@@ -865,27 +1124,22 @@ export class Sheet2024Filler extends SheetFiller {
     this.check(ARMOR_TRAINING_24.heavy, armor.has("hvy"));
     this.check(ARMOR_TRAINING_24.shield, armor.has("shl"));
 
-    const weapons = withCustom(list(traits.weaponProf?.value, "weapon"), traits.weaponProf?.custom);
+    const weapons = withCustomTraits(traitLabels(traits.weaponProf?.value, "weapon"), traits.weaponProf?.custom);
     this.text(F24.weaponProficiencies, weapons.join(", "), { fontSize: 8 });
-    const tools = list(Object.keys(system.tools ?? {}), "tool");
+    const tools = traitLabels(Object.keys(system.tools ?? {}), "tool");
     // The printed Tools box holds two lines, but the field ships as a single line; grow it down
-    // into the available space and let it wrap.
-    this.resizeField(F24.toolProficiencies, { y: 27, height: 24, multiline: true });
+    // into the available space and let it wrap. Templates that already ship a full-size multiline
+    // Tools field set toolsFieldRect to null so it is left in place.
+    if ( this.toolsFieldRect ) this.resizeField(F24.toolProficiencies, this.toolsFieldRect);
     this.text(F24.toolProficiencies, tools.join(", "), { fontSize: 8 });
-    const languages = withCustom(list(traits.languages?.value, "languages"), traits.languages?.custom);
+    const languages = withCustomTraits(traitLabels(traits.languages?.value, "languages"), traits.languages?.custom);
     this.text(F24.languages, languages.join(", "), { fontSize: 8 });
   }
 
   /* -------------------------------------------- */
 
   #fillFeatures(actor) {
-    const groups = { class: [], race: [], background: [], feat: [], other: [] };
-    for ( const item of actor.items ) {
-      if ( item.type !== "feat" ) continue;
-      const type = item.system.type?.value;
-      (groups[type] ?? groups.other).push(item);
-    }
-    for ( const items of Object.values(groups) ) items.sort((a, b) => a.name.localeCompare(b.name));
+    const groups = groupFeats(actor);
     const toBlocks = items => items.map(item => ({ title: item.name }));
 
     // Class features (plus background and any stray features) flow across the two Class Features columns
@@ -1068,6 +1322,30 @@ export class Sheet2024Filler extends SheetFiller {
 }
 
 /* -------------------------------------------- */
+/*  Fan Sheet (2024) filler                     */
+/* -------------------------------------------- */
+
+/**
+ * Fills our own Fan Content templates — the "Fan Sheet (2024)"
+ * (templates/DnD_Fan_2024_Character-Sheet.pdf) and the hand-drawn "Fantasy Sheet (2024)"
+ * (templates/DnD_Fantasy_2024_Character-Sheet.pdf). Both are original layouts that reuse the same
+ * field names as the official 2024 sheet, so the {@link Sheet2024Filler} logic populates them
+ * unchanged. They differ from the official sheet in two ways: each carries a "CHARACTER IMAGE"
+ * portrait button (embedded here), and its Tools field is authored at full size, so the base Tools
+ * reposition is skipped.
+ */
+export class FanSheet2024Filler extends Sheet2024Filler {
+  /** These templates ship a full-size, multiline Tools field, so leave it where it is. */
+  get toolsFieldRect() { return null; }
+
+  /** Populate the form, then embed the character portrait into the header image button. */
+  async fillActor(actor) {
+    await super.fillActor(actor);
+    await this.embedPortrait(actor);
+  }
+}
+
+/* -------------------------------------------- */
 /*  Helpers                                     */
 /* -------------------------------------------- */
 
@@ -1124,6 +1402,66 @@ export function weaponNotes(weapon) {
 export function signed(value) {
   const n = Number(value) || 0;
   return n >= 0 ? `+${n}` : `${n}`;
+}
+
+/* -------------------------------------------- */
+/*  Shared actor readers                        */
+/*  (used by both the 2014 and 2024 fillers)    */
+/* -------------------------------------------- */
+
+/** An actor's classes ordered by level, highest first. */
+function sortedClasses(actor) {
+  return Object.values(actor.classes ?? {}).sort((a, b) => (b.system.levels ?? 0) - (a.system.levels ?? 0));
+}
+
+/** Group an actor's feature items by source type ("class", "race", …), each group sorted by name. */
+function groupFeats(actor) {
+  const groups = { class: [], race: [], background: [], feat: [], other: [] };
+  for ( const item of actor.items ) {
+    if ( item.type !== "feat" ) continue;
+    const type = item.system.type?.value;
+    (groups[type] ?? groups.other).push(item);
+  }
+  for ( const items of Object.values(groups) ) items.sort((a, b) => a.name.localeCompare(b.name));
+  return groups;
+}
+
+/**
+ * Total hit dice across all classes, handling both current (`hd.denomination`/`hd.spent`) and
+ * legacy (`hitDice`/`hitDiceUsed`) dnd5e data shapes.
+ * @returns {{total: string, spent: number, remaining: number}}  `total` is a printable summary
+ *          ("4d8 + 2d6"); `spent`/`remaining` are the used and unused dice counts.
+ */
+function hitDice(actor) {
+  const byDenom = {};
+  let spent = 0;
+  let levels = 0;
+  for ( const cls of Object.values(actor.classes ?? {}) ) {
+    const denomination = cls.system.hd?.denomination ?? cls.system.hitDice ?? "d8";
+    const classLevels = cls.system.levels ?? 0;
+    byDenom[denomination] = (byDenom[denomination] ?? 0) + classLevels;
+    levels += classLevels;
+    spent += cls.system.hd?.spent ?? cls.system.hitDiceUsed ?? 0;
+  }
+  const total = Object.entries(byDenom).map(([denomination, count]) => `${count}${denomination}`).join(" + ");
+  return { total, spent, remaining: levels - spent };
+}
+
+/** Localize a set of dnd5e trait keys (languages, armor, weapon, tool) to their display labels. */
+function traitLabels(keys, trait) {
+  const Trait = dnd5e?.documents?.Trait;
+  return Array.from(keys ?? []).map(key => {
+    try {
+      return Trait?.keyLabel(key, { trait }) ?? key;
+    } catch(err) {
+      return key;
+    }
+  });
+}
+
+/** Append semicolon-separated custom trait entries to a list of localized trait labels. */
+function withCustomTraits(values, custom) {
+  return values.concat((custom ?? "").split(";").map(s => s.trim()).filter(_ => _));
 }
 
 /**
