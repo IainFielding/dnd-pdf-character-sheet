@@ -5,8 +5,8 @@
  * "Inked Tome" style: sepia ink on aged parchment, sketchy double-stroked boxes, a heater-shield
  * Armor Class, dice-hexagon ability scores, wax-seal stats, ribbon-banner section headers and a
  * faint d20 watermark in the masthead. The layout and artwork are entirely our own so the sheet can
- * be distributed as Fan Content. Like the Fan Sheet it reuses the field names expected by
- * scripts/field-map-2024.mjs (so Sheet2024Filler / FanSheet2024Filler fill it unchanged) and adds a
+ * be distributed as Fan Content. Like the Square Sheet it reuses the field names expected by
+ * scripts/field-map-2024.mjs (so Sheet2024Filler / SquareSheet2024Filler fill it unchanged) and adds a
  * "CHARACTER IMAGE" portrait button.
  *
  * All randomness is seeded, so the output is byte-for-byte reproducible. Run from the repo root:

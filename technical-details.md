@@ -126,7 +126,7 @@ knows how to populate one *layout* of sheet.
 ```
 SheetFiller                     ← base: 2014 official sheet + all shared low-level helpers
  └── Sheet2024Filler            ← 2024 official sheet (very different layout, 2 pages)
-      └── FanSheet2024Filler    ← our own Fan/Fantasy 2024 sheets (reuse 2024 field names)
+      └── SquareSheet2024Filler ← our own Square/Fantasy 2024 sheets (reuse 2024 field names)
 ```
 
 - **`SheetFiller`** ([main.mjs:449](scripts/main.mjs#L449)) holds the template-agnostic
@@ -134,11 +134,11 @@ SheetFiller                     ← base: 2014 official sheet + all shared low-l
   `addTextField`, `embedPortrait`, etc. Its own `fillActor` fills the **2014** layout.
 - **`Sheet2024Filler`** ([main.mjs:1033](scripts/main.mjs#L1033)) overrides `fillActor`
   for the 2024 sheet and adds the spell-overflow-page logic.
-- **`FanSheet2024Filler`** ([main.mjs:1381](scripts/main.mjs#L1381)) is the 2024 filler
+- **`SquareSheet2024Filler`** ([main.mjs:1381](scripts/main.mjs#L1381)) is the 2024 filler
   plus a portrait button; it fills our two bundled 2024-style sheets.
 
 `templateConfig(key)` ([main.mjs:41](scripts/main.mjs#L41)) maps a layout key
-(`"2024"`, `"2014"`, `"fan2024"`, `"fantasy2014"`, `"fantasy2024"`) to the right PDF path
+(`"2024"`, `"2014"`, `"square2024"`, `"fantasy2014"`, `"fantasy2024"`) to the right PDF path
 and the right filler class.
 
 ### 4.1 The lifecycle of one export
@@ -373,7 +373,7 @@ into a browser download. Two subtleties are load-bearing and were bug fixes; **d
 
 ## 8. Where the bundled templates come from
 
-Our three original sheets (Fan 2024, Fantasy 2024, Fantasy 2014) are **generated** by the
+Our three original sheets (Square 2024, Fantasy 2024, Fantasy 2014) are **generated** by the
 scripts in [tools/](tools/), e.g.
 [tools/build-fantasy-sheet-2024.mjs](tools/build-fantasy-sheet-2024.mjs). These run under
 **Node** and use the *same* `pdf-lib`, but from the *creation* side of the API:
@@ -446,7 +446,7 @@ green CI run.
 | --- | --- |
 | [test/helpers.test.mjs](test/helpers.test.mjs) | The pure formatting/parsing helpers exported from `main.mjs`: `signed`, `castingTimeAbbr`, `spellRowInfo`, `weaponNotes`, `damageSummary`, `sanitizeWinAnsi`, `wrapText`, and `SheetFiller.normalize`. |
 | [test/field-map.test.mjs](test/field-map.test.mjs) | The 2014 and 2024 field-name maps: that they are internally consistent (no duplicate/typo'd names, expected keys present). |
-| [test/fan-sheet.test.mjs](test/fan-sheet.test.mjs) | The **built** Fan Sheet (2024) and Fantasy Sheet (2024) PDFs actually contain every field name the 2024 map expects, with the correct widget type, plus the `CHARACTER IMAGE` button, and no stray extras. |
+| [test/square-sheet.test.mjs](test/square-sheet.test.mjs) | The **built** Square Sheet (2024) and Fantasy Sheet (2024) PDFs actually contain every field name the 2024 map expects, with the correct widget type, plus the `CHARACTER IMAGE` button, and no stray extras. |
 | [test/fantasy-2014-sheet.test.mjs](test/fantasy-2014-sheet.test.mjs) | The same structural check for the built Fantasy Sheet (2014) against the 2014 field map. |
 
 ### 11.2 Why the tests are shaped this way
@@ -468,7 +468,7 @@ build script's artwork or fields, **rebuild the affected template(s) before runn
 tests**, or they'll test the old PDF:
 
 ```
-node tools/build-fan-sheet-2024.mjs
+node tools/build-square-sheet-2024.mjs
 node tools/build-fantasy-sheet-2024.mjs
 node tools/build-fantasy-sheet-2014.mjs
 node --test
