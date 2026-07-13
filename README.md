@@ -19,8 +19,6 @@ The other three are original, freely distributable designs of my own. They carry
 | :--: | :--: | :--: |
 | [![2024 Fantasy](docs/img/akra-2024Fantasy.png)](docs/sample/Akra-2024Fantasy.pdf) | [![2024 Square](docs/img/akra-2024Square.png)](docs/sample/Akra-2024Square.pdf) | [![2014 Fantasy](docs/img/akra-2014Fantasy.png)](docs/sample/Akra-2014Fantasy.pdf) |
 
-You simply pick the character sheet you want to use when you start the export process.
-
 ---
 
 ## Requirements
