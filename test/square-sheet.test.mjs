@@ -1,13 +1,13 @@
 /**
- * Structural checks on the generated Fan Content templates — the "Fan Sheet (2024)" and the
+ * Structural checks on the generated Fan Content templates — the "Square Sheet (2024)" and the
  * hand-drawn "Fantasy Sheet (2024)". Both are our own artwork but deliberately reuse the official
- * 2024 field names so Sheet2024Filler / FanSheet2024Filler can fill them unchanged; if a field is
+ * 2024 field names so Sheet2024Filler / SquareSheet2024Filler can fill them unchanged; if a field is
  * missing or the wrong type, data silently drops onto the sheet. Each test loads the built PDF and
  * asserts every name the 2024 field map expects is present with the correct widget type, plus the
  * extra "CHARACTER IMAGE" portrait button, and that there are no stray extra fields.
  *
  * Regenerate the templates with:
- *   node tools/build-fan-sheet-2024.mjs
+ *   node tools/build-square-sheet-2024.mjs
  *   node tools/build-fantasy-sheet-2024.mjs
  */
 import { test } from "node:test";
@@ -21,7 +21,7 @@ import {
   ABILITIES, SKILLS, DEATH_SAVES, ARMOR_TRAINING, WEAPON_ROWS,
   SPELL_SLOT_TOTALS, SPELL_ROWS, FIELDS
 } from "../scripts/field-map-2024.mjs";
-import { PORTRAIT_FIELD as FAN_PORTRAIT } from "../tools/build-fan-sheet-2024.mjs";
+import { PORTRAIT_FIELD as SQUARE_PORTRAIT } from "../tools/build-square-sheet-2024.mjs";
 import { PORTRAIT_FIELD as FANTASY_PORTRAIT } from "../tools/build-fantasy-sheet-2024.mjs";
 
 const require = createRequire(import.meta.url);
@@ -30,7 +30,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 /** The generated templates to check, each with the portrait button it carries. */
 const SHEETS = [
-  { label: "Fan Sheet (2024)", file: "DnD_Fan_2024_Character-Sheet.pdf", portrait: FAN_PORTRAIT },
+  { label: "Square Sheet (2024)", file: "DnD_Square_2024_Character-Sheet.pdf", portrait: SQUARE_PORTRAIT },
   { label: "Fantasy Sheet (2024)", file: "DnD_Fantasy_2024_Character-Sheet.pdf", portrait: FANTASY_PORTRAIT }
 ];
 

@@ -35,7 +35,7 @@ const OFFICIAL_TEMPLATES = {
  * defined further down this file and do not exist yet while the top of the file is evaluating.
  * The two Fan Content layouts ship with the module; the official 2014/2024 sheets cannot be
  * distributed, so their path comes from the client setting the user pointed at their own download.
- * @param {string} key  "2024", "2014", "fan2024" or "fantasy2024".
+ * @param {string} key  "2024", "2014", "square2024" or "fantasy2024".
  * @returns {{path: string, Filler: typeof SheetFiller, official: boolean}}
  */
 function templateConfig(key) {
@@ -44,14 +44,14 @@ function templateConfig(key) {
     const Filler = (key === "2014") ? SheetFiller : Sheet2024Filler;
     return { path: game.settings.get(MODULE_ID, official.setting), Filler, official: true };
   }
-  if ( key === "fan2024" ) return { path: `${TEMPLATE_DIR}/DnD_Fan_2024_Character-Sheet.pdf`, Filler: FanSheet2024Filler, official: false };
+  if ( key === "square2024" ) return { path: `${TEMPLATE_DIR}/DnD_Square_2024_Character-Sheet.pdf`, Filler: SquareSheet2024Filler, official: false };
   // Our own hand-drawn Fantasy Sheet for the 2014 rules: it reuses the 2014 field names, so the base
   // 2014 SheetFiller (which already embeds the portrait button) populates it unchanged.
   if ( key === "fantasy2014" ) return { path: `${TEMPLATE_DIR}/DnD_Fantasy_2014_Character-Sheet.pdf`, Filler: SheetFiller, official: false };
   // Fantasy Sheet (2024), the {@link DEFAULT_TEMPLATE}. An unrecognised key also lands here, so a
   // stale or malformed setting falls back to the default layout rather than failing to export.
   if ( key !== DEFAULT_TEMPLATE ) console.warn(`${MODULE_ID} | Unknown template "${key}", using ${DEFAULT_TEMPLATE}`);
-  return { path: `${TEMPLATE_DIR}/DnD_Fantasy_2024_Character-Sheet.pdf`, Filler: FanSheet2024Filler, official: false };
+  return { path: `${TEMPLATE_DIR}/DnD_Fantasy_2024_Character-Sheet.pdf`, Filler: SquareSheet2024Filler, official: false };
 }
 
 /* -------------------------------------------- */
@@ -136,11 +136,11 @@ if ( globalThis.Hooks ) {
 /**
  * The layouts offered by the export dialog, grouped by rules edition and shown in this order. Within
  * each group the official WotC sheet comes first (a download/browse prompt until the user supplies
- * their own copy), followed by the bundled Fantasy/Fan sheets. The 2024 group leads because the
+ * their own copy), followed by the bundled Fantasy/Square sheets. The 2024 group leads because the
  * default layout ({@link DEFAULT_TEMPLATE}) lives there.
  */
 const EXPORT_GROUPS = [
-  { label: "SDPDF.Export.Group2024", keys: ["2024", "fantasy2024", "fan2024"] },
+  { label: "SDPDF.Export.Group2024", keys: ["2024", "fantasy2024", "square2024"] },
   { label: "SDPDF.Export.Group2014", keys: ["2014", "fantasy2014"] }
 ];
 
@@ -148,7 +148,7 @@ const EXPORT_GROUPS = [
 const BUNDLED_LABELS = {
   fantasy2024: "SDPDF.Settings.Template.ChoiceFantasy2024",
   fantasy2014: "SDPDF.Settings.Template.ChoiceFantasy2014",
-  fan2024: "SDPDF.Settings.Template.ChoiceFan2024"
+  square2024: "SDPDF.Settings.Template.ChoiceSquare2024"
 };
 
 /**
@@ -160,7 +160,7 @@ const BUNDLED_LABELS = {
 const LAYOUT_META = {
   fantasy2024: { icon: "fa-dragon", desc: "SDPDF.Export.DescFantasy2024", badge: "ready" },
   fantasy2014: { icon: "fa-shield-halved", desc: "SDPDF.Export.DescFantasy2014", badge: "ready" },
-  fan2024:     { icon: "fa-feather-pointed", desc: "SDPDF.Export.DescFan2024", badge: "ready" },
+  square2024:  { icon: "fa-feather-pointed", desc: "SDPDF.Export.DescSquare2024", badge: "ready" },
   "2024":      { icon: "fa-scroll", desc: "SDPDF.Export.Desc2024", badge: "official" },
   "2014":      { icon: "fa-book-open", desc: "SDPDF.Export.Desc2014", badge: "official" }
 };
@@ -381,7 +381,7 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
 /**
  * Generate a filled character sheet PDF for the given actor and offer it as a download.
  * @param {Actor} actor
- * @param {string} [template]  Layout key ("2024", "2014", "fan2024", "fantasy2024"). Defaults to the
+ * @param {string} [template]  Layout key ("2024", "2014", "square2024", "fantasy2024"). Defaults to the
  *                             layout remembered from the last export.
  */
 async function generatePdf(actor, template=game.settings.get(MODULE_ID, "template")) {
@@ -600,7 +600,7 @@ export class SheetFiller {
 
   /**
    * Embed the actor's portrait into the "CHARACTER IMAGE" push-button, if the template has one.
-   * Used by the 2014 sheet and the Fan Sheet (2024); templates without the button are left alone.
+   * Used by the 2014 sheet and the Square Sheet (2024); templates without the button are left alone.
    */
   async embedPortrait(actor) {
     const src = actor.img;
@@ -1336,19 +1336,19 @@ export class Sheet2024Filler extends SheetFiller {
 }
 
 /* -------------------------------------------- */
-/*  Fan Sheet (2024) filler                     */
+/*  Square Sheet (2024) filler                  */
 /* -------------------------------------------- */
 
 /**
- * Fills our own Fan Content templates — the "Fan Sheet (2024)"
- * (templates/DnD_Fan_2024_Character-Sheet.pdf) and the hand-drawn "Fantasy Sheet (2024)"
+ * Fills our own Fan Content templates — the "Square Sheet (2024)"
+ * (templates/DnD_Square_2024_Character-Sheet.pdf) and the hand-drawn "Fantasy Sheet (2024)"
  * (templates/DnD_Fantasy_2024_Character-Sheet.pdf). Both are original layouts that reuse the same
  * field names as the official 2024 sheet, so the {@link Sheet2024Filler} logic populates them
  * unchanged. They differ from the official sheet in two ways: each carries a "CHARACTER IMAGE"
  * portrait button (embedded here), and its Tools field is authored at full size, so the base Tools
  * reposition is skipped.
  */
-export class FanSheet2024Filler extends Sheet2024Filler {
+export class SquareSheet2024Filler extends Sheet2024Filler {
   /** These templates ship a full-size, multiline Tools field, so leave it where it is. */
   get toolsFieldRect() { return null; }
 

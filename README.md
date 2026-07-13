@@ -15,9 +15,9 @@ Full support for both the official **D&D 2014** and **D&D 2024** character sheet
 
 The other three are original, freely distributable designs of my own. They carry all the same fields as the official sheets, plus an embedded character portrait.
 
-| 2024 Fantasy | 2024 Fan | 2014 Fantasy |
+| 2024 Fantasy | 2024 Square | 2014 Fantasy |
 | :--: | :--: | :--: |
-| [![2024 Fantasy](docs/img/akra-2024Fantasy.png)](docs/sample/Akra-2024Fantasy.pdf) | [![2024 Fan](docs/img/akra-2024Fan.png)](docs/sample/Akra-2024Fan.pdf) | [![2014 Fantasy](docs/img/akra-2014Fantasy.png)](docs/sample/Akra-2014Fantasy.pdf) |
+| [![2024 Fantasy](docs/img/akra-2024Fantasy.png)](docs/sample/Akra-2024Fantasy.pdf) | [![2024 Square](docs/img/akra-2024Square.png)](docs/sample/Akra-2024Square.pdf) | [![2014 Fantasy](docs/img/akra-2014Fantasy.png)](docs/sample/Akra-2014Fantasy.pdf) |
 
 You simply pick the character sheet you want to use when you start the export process.
 
@@ -76,7 +76,7 @@ the sheet. This includes:
   and backstory.
 - **Spellcasting**: spellcasting ability, save DC, attack bonus, spell slots,
   and your known or prepared spells. Prepared spells are marked as such.
-- **Portrait**: on the 2014 sheet, both Fantasy Sheets and the Fan Sheet (2024),
+- **Portrait**: on the 2014 sheet, both Fantasy Sheets and the Square Sheet (2024),
   the character's portrait image is embedded into the sheet.
 
 The generated PDF remains editable in a PDF reader, so you can tweak values by hand after exporting, or fill in anything the sheet left blank.
@@ -94,7 +94,7 @@ The options are:
 
 - **Fantasy Sheet (2024)**: the default; our original hand-drawn "Inked Tome" layout.
 - **Fantasy Sheet (2014)**: the same "Inked Tome" style laid out for the 2014 rules.
-- **Fan Sheet (2024)**: our original "Modern Arcane" layout.
+- **Square Sheet (2024)**: our original "Modern Arcane" layout.
 - **2024 Official Sheet** and **2014 Official Sheet**: Wizards of the Coast's own sheets. These
   appear as choices **only once you have provided your own copy** (see below).
 

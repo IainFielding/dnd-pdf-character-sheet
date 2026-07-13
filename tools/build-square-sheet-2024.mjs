@@ -1,5 +1,5 @@
 /**
- * Build script for templates/DnD_Fan_2024_Character-Sheet.pdf
+ * Build script for templates/DnD_Square_2024_Character-Sheet.pdf
  *
  * Generates an original, form-fillable "5th Edition" character sheet in a "Modern Arcane" style
  * (off-white parchment, deep ink-blue + burnished gold, thin double-rule borders). The layout and
@@ -9,7 +9,7 @@
  * one extra "CHARACTER IMAGE" push-button for the character portrait.
  *
  * Run from the repo root:
- *   node tools/build-fan-sheet-2024.mjs
+ *   node tools/build-square-sheet-2024.mjs
  */
 
 import { createRequire } from "node:module";
@@ -27,7 +27,7 @@ const PDFLib = require("../lib/pdf-lib.min.js");
 const { PDFDocument, StandardFonts, rgb, degrees, TextAlignment } = PDFLib;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const OUT = path.resolve(HERE, "../templates/DnD_Fan_2024_Character-Sheet.pdf");
+const OUT = path.resolve(HERE, "../templates/DnD_Square_2024_Character-Sheet.pdf");
 
 /** Push-button field that receives the actor portrait (not part of the 2024 field map). */
 export const PORTRAIT_FIELD = "CHARACTER IMAGE";
@@ -276,9 +276,9 @@ function cornerFlourishes(S) {
 
 export async function build() {
   const doc = await PDFDocument.create();
-  doc.setTitle("5e Fan Character Sheet");
+  doc.setTitle("5e Square Character Sheet");
   doc.setSubject("An original, Fan Content compatible Fifth Edition character sheet.");
-  doc.setCreator("Simple D&D PDF Character Sheet (Fan Sheet generator)");
+  doc.setCreator("Simple D&D PDF Character Sheet (Square Sheet generator)");
   doc.setProducer("pdf-lib");
 
   const fonts = {
@@ -499,7 +499,7 @@ function buildPage1(S) {
   S.rect(eX, eTop + 8, eW, 52, { fill: FIELD_BG, stroke: LINE_SOFT, lineWidth: 0.6 });
   S.textField(FIELDS.weaponProficiencies, eX + 3, eTop + 10, eW - 6, 48, { multiline: true, size: 8 });
   eTop += 66;
-  // Tool proficiencies (native multiline — FanSheet2024Filler skips the base resize)
+  // Tool proficiencies (native multiline — SquareSheet2024Filler skips the base resize)
   S.micro("TOOLS", eX, eTop);
   const toolH = 772 - (eTop + 8);
   S.rect(eX, eTop + 8, eW, toolH, { fill: FIELD_BG, stroke: LINE_SOFT, lineWidth: 0.6 });
