@@ -9,9 +9,12 @@ Read this alongside the code. The three files that matter are:
 | File | Role |
 | --- | --- |
 | [scripts/main.mjs](scripts/main.mjs) | All the PDF logic: loading, filling, drawing, saving, downloading. |
-| [scripts/field-map-2014.mjs](scripts/field-map-2014.mjs) | Names of every form field on the 2014-era sheets. |
-| [scripts/field-map-2024.mjs](scripts/field-map-2024.mjs) | Names of every form field on the 2024-era sheets. |
-| [tools/](tools/) | Node scripts that *build* our own template PDFs (also with `pdf-lib`). |
+| [scripts/field-map-2014.mjs](scripts/field-map-2014.mjs) | Names of every form field on the official 2014 sheet. |
+| [scripts/field-map-2024.mjs](scripts/field-map-2024.mjs) | Names of every form field on the official 2024 sheet. |
+
+The module supports the two official Wizards of the Coast sheets and nothing else. Both are
+copyrighted, so **no template PDF ships in this repo**: the user downloads their own copy and points
+a client setting at it, and that path is what we load and fill.
 
 ---
 
@@ -45,8 +48,8 @@ We load a **pre-built, minified copy** rather than an npm import:
 
 > **Why a global and not an import?** Foundry modules load classic scripts and ES modules
 > differently. Shipping the vendored `pdf-lib.min.js` as a classic script is the simplest
-> way to make it available everywhere without a bundler. The `tools/` build scripts, which
-> run under Node, instead pull the same file in with `require("../lib/pdf-lib.min.js")`.
+> way to make it available everywhere without a bundler. Anything running under Node instead
+> pulls the same file in with `require("../lib/pdf-lib.min.js")`.
 
 ---
 
@@ -124,22 +127,21 @@ All filling is done by a small class hierarchy in [main.mjs](scripts/main.mjs). 
 knows how to populate one *layout* of sheet.
 
 ```
-SheetFiller                     ← base: 2014 official sheet + all shared low-level helpers
- └── Sheet2024Filler            ← 2024 official sheet (very different layout, 2 pages)
-      └── SquareSheet2024Filler ← our own Square/Fantasy 2024 sheets (reuse 2024 field names)
+SheetFiller            ← base: 2014 official sheet + all shared low-level helpers
+ └── Sheet2024Filler   ← 2024 official sheet (very different layout, 2 pages)
 ```
 
-- **`SheetFiller`** ([main.mjs:449](scripts/main.mjs#L449)) holds the template-agnostic
-  toolbox: `create`, `save`, `text`, `check`, `resizeField`, `drawFeatureBlocks`,
-  `addTextField`, `embedPortrait`, etc. Its own `fillActor` fills the **2014** layout.
-- **`Sheet2024Filler`** ([main.mjs:1033](scripts/main.mjs#L1033)) overrides `fillActor`
-  for the 2024 sheet and adds the spell-overflow-page logic.
-- **`SquareSheet2024Filler`** ([main.mjs:1381](scripts/main.mjs#L1381)) is the 2024 filler
-  plus a portrait button; it fills our two bundled 2024-style sheets.
+- **`SheetFiller`** holds the template-agnostic toolbox: `create`, `save`, `text`, `check`,
+  `resizeField`, `drawFeatureBlocks`, `addTextField`, `embedPortrait`, etc. Its own
+  `fillActor` fills the **2014** layout.
+- **`Sheet2024Filler`** overrides `fillActor` for the 2024 sheet and adds the
+  spell-overflow-page logic.
 
-`templateConfig(key)` ([main.mjs:41](scripts/main.mjs#L41)) maps a layout key
-(`"2024"`, `"2014"`, `"square2024"`, `"fantasy2014"`, `"fantasy2024"`) to the right PDF path
-and the right filler class.
+`templateConfig(key)` maps a layout key (`"2024"` or `"2014"`) to the right filler class and to
+the PDF path, which is read from the client setting holding the user's own copy of that sheet. An
+unrecognised key falls back to the default (`"2024"`), so a setting left behind by an older version
+still resolves. The path is an empty string until the user supplies a file; `generatePdf` checks for
+that and shows a notification rather than trying to fetch nothing.
 
 ### 4.1 The lifecycle of one export
 
@@ -158,7 +160,7 @@ downloadBytes(bytes, `${actor.name} - Character Sheet.pdf`);  // 4. download
 `SheetFiller.create` ([main.mjs:466](scripts/main.mjs#L466)) does the setup work:
 
 1. `fetch` the template bytes (via `foundry.utils.getRoute` so it works under a route
-   prefix), unless bytes were passed directly (the Node tests pass them in).
+   prefix), unless bytes were passed directly via the optional `pdfBytes` argument.
 2. `PDFDocument.load(pdfBytes)` → `filler.doc`.
 3. `doc.getForm()` → `filler.form`.
 4. Embed two standard fonts (Helvetica + Helvetica-Bold) for direct drawing (§5).
@@ -219,7 +221,7 @@ Sometimes a form field is not enough, and we paint text straight onto the page w
 `page.drawText(...)`. This content is **baked into the page**, not editable afterwards.
 
 We do this for the **Features & Traits** blocks (`drawFeatureBlocks`,
-[main.mjs:786](scripts/main.mjs#L786)) for one reason: **a single form field can only use
+[main.mjs:761](scripts/main.mjs#L761)) for one reason: **a single form field can only use
 one font**, but we want a **bold feature name followed by regular description text** in the
 same box. Mixed fonts inside one field are impossible, so we draw the text ourselves using
 the two fonts we embedded in `create`.
@@ -227,7 +229,7 @@ the two fonts we embedded in `create`.
 `drawFeatureBlocks` is worth reading closely because it demonstrates the manual-layout
 techniques:
 
-- **Find the box.** `#fieldBox(name)` ([main.mjs:842](scripts/main.mjs#L842)) resolves a
+- **Find the box.** `#fieldBox(name)` ([main.mjs:817](scripts/main.mjs#L817)) resolves a
   field to `{ page, rect }` using the widget rectangle (§3.4), then **hides the field**
   (see §6.4) so the empty box art can't paint over our drawn text.
 - **Flow across multiple boxes.** The 2014 sheet has a Features box on page 1 and an
@@ -235,7 +237,7 @@ techniques:
   The `carry` variable holds the leftover of a segment that didn't fit so the next box can
   resume it.
 - **Word-wrap manually.** `wrapText(text, font, size, maxWidth)`
-  ([main.mjs:1503](scripts/main.mjs#L1503)) is a greedy word-wrapper that measures each
+  ([main.mjs:1483](scripts/main.mjs#L1483)) is a greedy word-wrapper that measures each
   candidate line with `font.widthOfTextAtSize(...)`. It even hard-splits single words longer
   than a line. There is no automatic wrapping when you `drawText`, so we must do it ourselves.
 - **Track `y` downward.** Remember the origin is bottom-left (§3.5), so each drawn line
@@ -275,9 +277,9 @@ button.setImage(image);
 ```
 
 `pdf-lib` can only embed **PNG or JPEG**. Foundry portraits can be webp, svg, etc., so
-`loadImageAsPng` ([main.mjs:1553](scripts/main.mjs#L1553)) loads the image into an
-`<img>`, paints it onto a `<canvas>`, and re-encodes it as PNG bytes via `canvas.toBlob`.
-Templates without a `CHARACTER IMAGE` button (the official sheets) are simply left alone.
+`loadImageAsPng` loads the image into an `<img>`, paints it onto a `<canvas>`, and re-encodes it as
+PNG bytes via `canvas.toBlob`. Only the 2014 sheet has this button; the 2024 sheet has no portrait
+slot, so `embedPortrait` finds no button and leaves the document alone.
 
 ### 6.3 Field names must be unique, and why that matters for overflow pages
 
@@ -286,7 +288,7 @@ the 2024 sheet: if an actor knows more than the 30 spells the printed table hold
 **extra copies of page 2**. But you cannot just copy a page and keep its fields; you'd have
 two fields both named `"Spell 5 Name"`, which is invalid.
 
-`#addSpellOverflowPages` ([main.mjs:1318](scripts/main.mjs#L1318)) solves this:
+`#addSpellOverflowPages` ([main.mjs:1262](scripts/main.mjs#L1262)) solves this:
 
 ```js
 // 1. Read the ORIGINAL page-2 field positions first (before copying anything).
@@ -328,13 +330,13 @@ for what you need; here, setting a raw annotation flag.
 
 ### 6.5 Resizing and creating fields
 
-- `resizeField(name, { x, y, width, height, multiline })`
-  ([main.mjs:548](scripts/main.mjs#L548)) moves/grows an existing field's widget rectangle
-  and optionally turns on multiline. Used where a template ships a single-line field inside a
-  box printed for two lines (e.g. the 2024 Tools field, see `toolsFieldRect`).
+- `resizeField(name, { x, y, width, height, multiline })` moves/grows an existing field's widget
+  rectangle and optionally turns on multiline. Used where a template ships a single-line field
+  inside a box printed for two lines — the 2024 Tools field is the one live case, grown in
+  `Sheet2024Filler`'s `#fillProficiencies`.
 - `addTextField(page, name, rect, value, opts)`
-  ([main.mjs:907](scripts/main.mjs#L907)) and `addCheckBox`
-  ([main.mjs:933](scripts/main.mjs#L933)) create **brand-new** fields (used on overflow
+  ([main.mjs:882](scripts/main.mjs#L882)) and `addCheckBox`
+  ([main.mjs:908](scripts/main.mjs#L908)) create **brand-new** fields (used on overflow
   pages). Note the transparent styling (`borderColor`/`backgroundColor` left `undefined`)
   so the printed template art shows through instead of a white box.
 
@@ -342,14 +344,14 @@ for what you need; here, setting a raw annotation flag.
 
 Because our embedded standard fonts are WinAnsi-encoded, characters outside that set (smart
 quotes, em-dashes, ellipses, emoji…) will make `pdf-lib` throw when drawn or, worse, render
-as garbage. `sanitizeWinAnsi` ([main.mjs:1536](scripts/main.mjs#L1536)) replaces the common
+as garbage. `sanitizeWinAnsi` ([main.mjs:1516](scripts/main.mjs#L1516)) replaces the common
 offenders (`'` `'` → `'`, `—` → `-`, `…` → `...`) and drops anything still unrepresentable.
 Always run text through it before `drawText`; `addTextField` and `wrapText` already do.
 
 ### 6.7 HTML → plain text
 
 Foundry stores biographies, ideals, etc. as **rich-text HTML**. Form fields hold plain text
-only, so `stripHtml` ([main.mjs:1582](scripts/main.mjs#L1582)) parses the HTML in a throwaway
+only, so `stripHtml` ([main.mjs:1562](scripts/main.mjs#L1562)) parses the HTML in a throwaway
 `<div>`, turns `</p>`/`<br>` into newlines, and returns `textContent`.
 
 ---
@@ -371,27 +373,7 @@ into a browser download. Two subtleties are load-bearing and were bug fixes; **d
 
 ---
 
-## 8. Where the bundled templates come from
-
-Our three original sheets (Square 2024, Fantasy 2024, Fantasy 2014) are **generated** by the
-scripts in [tools/](tools/), e.g.
-[tools/build-fantasy-sheet-2024.mjs](tools/build-fantasy-sheet-2024.mjs). These run under
-**Node** and use the *same* `pdf-lib`, but from the *creation* side of the API:
-`PDFDocument.create()`, `doc.addPage()`, `page.drawRectangle/drawText/drawSvgPath`, and
-`form.createTextField(...)` to lay out artwork and place the form fields whose names match
-the field maps. They are **deterministic** (seeded PRNG), so rerunning a build reproduces
-the exact same PDF byte-for-byte. Rebuild after editing artwork with:
-
-```
-node tools/build-fantasy-sheet-2024.mjs
-```
-
-The official WotC PDFs are **not** in the repo (they're copyrighted); users supply their own
-copy and we fill it.
-
----
-
-## 9. Debugging: `generateDebugPdf`
+## 8. Debugging: `generateDebugPdf`
 
 When you need to discover or verify the field names on a template, run this from the browser
 console:
@@ -400,14 +382,15 @@ console:
 game.modules.get("sogrom-dnd5e-character-sheet-pdf").api.generateDebugPdf("2024")
 ```
 
-`generateDebugPdf` ([main.mjs:394](scripts/main.mjs#L394)) writes a sequential number into
-every text field, ticks every checkbox, `console.table`s the number → field-name mapping, and
-downloads the result. Match the numbers you see on the generated PDF against the table to map
-a printed box to its field name; this is how the field maps were built.
+`generateDebugPdf` writes a sequential number into every text field, ticks every checkbox,
+`console.table`s the number → field-name mapping, and downloads the result. Match the numbers you
+see on the generated PDF against the table to map a printed box to its field name; this is how the
+field maps were built. It fills the same user-supplied template as a normal export, so the sheet you
+are debugging must already be provided.
 
 ---
 
-## 10. Common pitfalls checklist
+## 9. Common pitfalls checklist
 
 - **`pdf-lib is not loaded`**: the global `PDFLib` isn't present. Check `module.json`'s
   `scripts` array still lists `lib/pdf-lib.min.js` and that the file exists.
@@ -426,7 +409,7 @@ a printed box to its field name; this is how the field maps were built.
 
 ---
 
-## 11. Tests: what to run and when
+## 10. Tests: what to run and when
 
 The project is **dependency-free**: there is no `package.json`, no `npm install`, no build
 step. Tests use **Node's built-in test runner**, so all you need is Node **18+** (CI pins
@@ -437,77 +420,59 @@ node --test
 ```
 
 That discovers and runs every `*.test.mjs` file under [test/](test/). **Always run it before
-you commit or open a PR**; it is exactly what CI runs (§12), so a green local run means a
+you commit or open a PR**; it is exactly what CI runs (§11), so a green local run means a
 green CI run.
 
-### 11.1 The four test files
+### 10.1 The two test files
 
 | File | What it guards |
 | --- | --- |
 | [test/helpers.test.mjs](test/helpers.test.mjs) | The pure formatting/parsing helpers exported from `main.mjs`: `signed`, `castingTimeAbbr`, `spellRowInfo`, `weaponNotes`, `damageSummary`, `sanitizeWinAnsi`, `wrapText`, and `SheetFiller.normalize`. |
 | [test/field-map.test.mjs](test/field-map.test.mjs) | The 2014 and 2024 field-name maps: that they are internally consistent (no duplicate/typo'd names, expected keys present). |
-| [test/square-sheet.test.mjs](test/square-sheet.test.mjs) | The **built** Square Sheet (2024) and Fantasy Sheet (2024) PDFs actually contain every field name the 2024 map expects, with the correct widget type, plus the `CHARACTER IMAGE` button, and no stray extras. |
-| [test/fantasy-2014-sheet.test.mjs](test/fantasy-2014-sheet.test.mjs) | The same structural check for the built Fantasy Sheet (2014) against the 2014 field map. |
 
-### 11.2 Why the tests are shaped this way
+### 10.2 Why the tests are shaped this way
 
 - **Importing `main.mjs` in Node is safe.** Its Foundry hook registration is guarded behind
   `if ( globalThis.Hooks )`, and the `PdfExportDialog` class is only defined when the
   `foundry` global exists. Neither is present under Node, so `import`ing the module just
   gives you the exported pure functions and filler classes, no Foundry required.
-- **The sheet tests are the safety net for the build scripts.** Our bundled templates
-  ([tools/](tools/)) and the fill logic agree *only* through shared field names. If a build
-  script renames or drops a field, data would silently fail to land on the sheet at runtime.
-  The structural tests catch that at build time instead: they load the generated PDF with
-  `pdf-lib` and assert every mapped name exists with the right widget type.
+- **There is no structural test of a template PDF, and there cannot be.** Both sheets are
+  copyrighted and supplied by the user, so no template exists in the repo for a test to load.
+  The field maps and the real PDFs agree *only* through field names, and nothing in CI verifies
+  that agreement — a rename on WotC's side surfaces at runtime as an `Unknown text field "…"`
+  console warning and a blank box on the sheet. That warning is the safety net; see §9.
 
-### 11.3 When you must regenerate templates first
-
-The structural tests check the **committed** PDFs in [templates/](templates/). If you edit a
-build script's artwork or fields, **rebuild the affected template(s) before running the
-tests**, or they'll test the old PDF:
-
-```
-node tools/build-square-sheet-2024.mjs
-node tools/build-fantasy-sheet-2024.mjs
-node tools/build-fantasy-sheet-2014.mjs
-node --test
-```
-
-The builds are deterministic (seeded PRNG), so a rebuild with no source change produces a
-byte-identical PDF and a clean `git diff`.
-
-### 11.4 A quick sanity checklist before pushing
+### 10.3 A quick sanity checklist before pushing
 
 1. `node --test`: all green.
-2. If you touched a `tools/build-*.mjs`, rebuild that template and confirm `git diff` shows
-   only the change you intended.
+2. If you touched a field map, export a real sheet in Foundry and check the console for
+   `Unknown text field` / `Unknown checkbox` warnings.
 3. If you touched `module.json` or a `lang/*.json`, they're still valid JSON (CI runs
-   `jq empty` on them, see §12).
+   `jq empty` on them, see §11).
 
 ---
 
-## 12. GitHub workflows (CI & release)
+## 11. GitHub workflows (CI & release)
 
 There are two GitHub Actions workflows, in [.github/workflows/](.github/workflows/). They do
 completely different jobs and fire on different events.
 
-### 12.1 `ci.yml`: runs on every push and pull request
+### 11.1 `ci.yml`: runs on every push and pull request
 
 [.github/workflows/ci.yml](.github/workflows/ci.yml) is the gate on all branches. It has one
-`check` job on `ubuntu-latest` with Node 20, and mirrors §11's local checks so nothing
+`check` job on `ubuntu-latest` with Node 20, and mirrors §10's local checks so nothing
 reaches `main` broken:
 
 1. **Validate JSON**: `jq empty module.json` and every `lang/*.json`. Foundry parses these
    at load with no build step to catch a stray comma, so CI catches it first.
 2. **Syntax-check scripts**: `node --check` on each `scripts/*.mjs` (does not execute them;
    `lib/` is skipped because it holds the minified `pdf-lib` vendor bundle).
-3. **Run tests**: `node --test` (the §11 suite).
+3. **Run tests**: `node --test` (the §10 suite).
 
 Because the toolchain is dependency-free, there is no `npm install` step and CI is fast. **If
 CI is red, the fix is almost always reproducible locally** by running the same three commands.
 
-### 12.2 `main.yml`: runs only when a GitHub Release is published
+### 11.2 `main.yml`: runs only when a GitHub Release is published
 
 [.github/workflows/main.yml](.github/workflows/main.yml) builds and attaches the distributable
 `module.zip`. It triggers **only** on `release: [published]`, not on pushes, not on tags
@@ -521,15 +486,16 @@ alone. Its steps:
    **not** committed back.
 3. **Validate the manifest** again with `jq empty` after substitution.
 4. **Zip the module**: `module.json`, `README.md`, `LICENSE`, `scripts/`, `lib/`, `lang/`,
-   `templates/`. **Note what is *not* shipped:** `test/`, `tools/`, `docs/`, and this file.
-   If you add a new top-level directory the module needs at runtime, you must add it to the
-   `zip` step or it won't reach users.
+   `styles/`. **Note what is *not* shipped:** `test/`, `docs/`, and this file. There is no
+   `templates/` directory — the sheets are user-supplied (§1). If you add a new top-level
+   directory the module needs at runtime, you must add it to the `zip` step or it won't reach
+   users.
 5. **Attach `module.json` + `module.zip`** to the GitHub release.
 
 Foundry's install/update check reads the `latest_manifest_url`
 (`…/releases/latest/download/module.json`), so that URL must stay stable across releases.
 
-### 12.3 How to cut a release
+### 11.3 How to cut a release
 
 1. Make sure `main` is green in CI.
 2. On GitHub, **Draft a new release**, create a tag in the `1.2.3` / `v1.2.3` format, write
@@ -542,7 +508,7 @@ Foundry's install/update check reads the `latest_manifest_url`
 > `#{VERSION}#` token and is filled from the release tag at build time. Editing it to a real
 > number would break the release substitution.
 
-### 12.4 Dependabot
+### 11.4 Dependabot
 
 [.github/dependabot.yml](.github/dependabot.yml) keeps the GitHub Actions versions (e.g.
 `actions/checkout`, `actions/setup-node`) up to date via automated PRs. Those PRs run through
@@ -550,7 +516,7 @@ Foundry's install/update check reads the `latest_manifest_url`
 
 ---
 
-## 13. Further reading
+## 12. Further reading
 
 - `pdf-lib` docs & API: <https://pdf-lib.js.org/>
 - PDF form (AcroForm) basics: the concepts of *fields*, *widgets*, and *annotation flags* in

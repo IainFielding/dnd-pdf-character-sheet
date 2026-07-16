@@ -6,14 +6,14 @@ import {
 } from "./field-map-2024.mjs";
 
 const MODULE_ID = "sogrom-dnd5e-character-sheet-pdf";
-const TEMPLATE_DIR = `modules/${MODULE_ID}/templates`;
-const DEFAULT_TEMPLATE = "fantasy2024";
+const DEFAULT_TEMPLATE = "2024";
 
 /**
- * The two official Wizards of the Coast sheets. Their PDFs are copyrighted, so this module cannot
- * bundle them; instead the user downloads each from D&D Beyond and points the matching client
- * setting at their own copy. Each entry drives the export dialog (label, download link, which
- * setting stores the user's file); {@link templateConfig} pairs the key with its filler class.
+ * The two official Wizards of the Coast sheets, and the only layouts this module supports. Their
+ * PDFs are copyrighted, so the module cannot bundle them; instead the user downloads each from
+ * D&D Beyond and points the matching client setting at their own copy. Each entry drives the
+ * export dialog (label, download link, which setting stores the user's file);
+ * {@link templateConfig} pairs the key with its filler class.
  * @type {Record<string, {label: string, url: string, setting: string}>}
  */
 const OFFICIAL_TEMPLATES = {
@@ -33,25 +33,20 @@ const OFFICIAL_TEMPLATES = {
  * Resolve a template key to its PDF file path and the filler class that understands its layout.
  * Looked up when a PDF is generated rather than at module load, because the filler classes are
  * defined further down this file and do not exist yet while the top of the file is evaluating.
- * The two Fan Content layouts ship with the module; the official 2014/2024 sheets cannot be
- * distributed, so their path comes from the client setting the user pointed at their own download.
- * @param {string} key  "2024", "2014", "square2024" or "fantasy2024".
- * @returns {{path: string, Filler: typeof SheetFiller, official: boolean}}
+ * Neither sheet can be distributed, so the path always comes from the client setting the user
+ * pointed at their own download, and is empty until they supply one.
+ * @param {string} key  "2024" or "2014". An unrecognised key falls back to {@link DEFAULT_TEMPLATE},
+ *                      so a stale or malformed setting still resolves to a usable layout.
+ * @returns {{path: string, Filler: typeof SheetFiller}}
  */
 function templateConfig(key) {
-  const official = OFFICIAL_TEMPLATES[key];
-  if ( official ) {
-    const Filler = (key === "2014") ? SheetFiller : Sheet2024Filler;
-    return { path: game.settings.get(MODULE_ID, official.setting), Filler, official: true };
+  let official = OFFICIAL_TEMPLATES[key];
+  if ( !official ) {
+    console.warn(`${MODULE_ID} | Unknown template "${key}", using ${DEFAULT_TEMPLATE}`);
+    key = DEFAULT_TEMPLATE;
+    official = OFFICIAL_TEMPLATES[key];
   }
-  if ( key === "square2024" ) return { path: `${TEMPLATE_DIR}/DnD_Square_2024_Character-Sheet.pdf`, Filler: SquareSheet2024Filler, official: false };
-  // Our own hand-drawn Fantasy Sheet for the 2014 rules: it reuses the 2014 field names, so the base
-  // 2014 SheetFiller (which already embeds the portrait button) populates it unchanged.
-  if ( key === "fantasy2014" ) return { path: `${TEMPLATE_DIR}/DnD_Fantasy_2014_Character-Sheet.pdf`, Filler: SheetFiller, official: false };
-  // Fantasy Sheet (2024), the {@link DEFAULT_TEMPLATE}. An unrecognised key also lands here, so a
-  // stale or malformed setting falls back to the default layout rather than failing to export.
-  if ( key !== DEFAULT_TEMPLATE ) console.warn(`${MODULE_ID} | Unknown template "${key}", using ${DEFAULT_TEMPLATE}`);
-  return { path: `${TEMPLATE_DIR}/DnD_Fantasy_2024_Character-Sheet.pdf`, Filler: SquareSheet2024Filler, official: false };
+  return { path: game.settings.get(MODULE_ID, official.setting), Filler: (key === "2014") ? SheetFiller : Sheet2024Filler };
 }
 
 /* -------------------------------------------- */
@@ -134,42 +129,31 @@ if ( globalThis.Hooks ) {
 /* -------------------------------------------- */
 
 /**
- * The layouts offered by the export dialog, grouped by rules edition and shown in this order. Within
- * each group the official WotC sheet comes first (a download/browse prompt until the user supplies
- * their own copy), followed by the bundled Fantasy/Square sheets. The 2024 group leads because the
- * default layout ({@link DEFAULT_TEMPLATE}) lives there.
+ * The layouts offered by the export dialog, grouped by rules edition and shown in this order. Each
+ * group holds that edition's official WotC sheet, which shows a download/browse prompt until the
+ * user supplies their own copy. The 2024 group leads because the default layout
+ * ({@link DEFAULT_TEMPLATE}) lives there.
  */
 const EXPORT_GROUPS = [
-  { label: "SDPDF.Export.Group2024", keys: ["2024", "fantasy2024", "square2024"] },
-  { label: "SDPDF.Export.Group2014", keys: ["2014", "fantasy2014"] }
+  { label: "SDPDF.Export.Group2024", keys: ["2024"] },
+  { label: "SDPDF.Export.Group2014", keys: ["2014"] }
 ];
-
-/** Non-official layouts always available for export, keyed by the same layout key. */
-const BUNDLED_LABELS = {
-  fantasy2024: "SDPDF.Settings.Template.ChoiceFantasy2024",
-  fantasy2014: "SDPDF.Settings.Template.ChoiceFantasy2014",
-  square2024: "SDPDF.Settings.Template.ChoiceSquare2024"
-};
 
 /**
  * Presentation metadata for each layout card in the export dialog: the Font Awesome icon that
- * fronts the card, the localization key for its one-line description, and the badge tone
- * ("ready" for the bundled sheets, "official" for the WotC ones). Kept separate from the
+ * fronts the card and the localization key for its one-line description. Kept separate from the
  * label/availability logic so the visuals can be tweaked without touching the picker behaviour.
  */
 const LAYOUT_META = {
-  fantasy2024: { icon: "fa-dragon", desc: "SDPDF.Export.DescFantasy2024", badge: "ready" },
-  fantasy2014: { icon: "fa-shield-halved", desc: "SDPDF.Export.DescFantasy2014", badge: "ready" },
-  square2024:  { icon: "fa-feather-pointed", desc: "SDPDF.Export.DescSquare2024", badge: "ready" },
-  "2024":      { icon: "fa-scroll", desc: "SDPDF.Export.Desc2024", badge: "official" },
-  "2014":      { icon: "fa-book-open", desc: "SDPDF.Export.Desc2014", badge: "official" }
+  "2024": { icon: "fa-scroll", desc: "SDPDF.Export.Desc2024" },
+  "2014": { icon: "fa-book-open", desc: "SDPDF.Export.Desc2014" }
 };
 
 /**
- * ApplicationV2 window shown when the user asks to export a sheet. It lists the layouts they can
- * generate — the two bundled Fan Content sheets always, plus either official sheet the user has
- * supplied a copy of — and, for an official sheet not yet supplied, a download link and a file
- * browser button so they can point the module at their own copy. Only defined inside Foundry, where
+ * ApplicationV2 window shown when the user asks to export a sheet. It lists the two official
+ * layouts: each is selectable once the user has supplied their own copy of that sheet, and until
+ * then shows a download link and a file browser button so they can point the module at their own
+ * copy. Only defined inside Foundry, where
  * the ApplicationV2 base class exists; the module is also imported by the Node test harness, which
  * has no `foundry` global.
  */
@@ -197,10 +181,14 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
 
     /* -------------------------------------------- */
 
-    /** Whether a layout key can be generated right now (bundled sheets always; official only if supplied). */
+    /**
+     * Whether a layout key can be generated right now, i.e. the user has supplied their own copy of
+     * that official sheet. An unrecognised key (a setting left behind by an older version) is never
+     * available, so the caller falls back to the default layout.
+     */
     #available(key) {
       const official = OFFICIAL_TEMPLATES[key];
-      return official ? !!game.settings.get(MODULE_ID, official.setting) : (key in BUNDLED_LABELS);
+      return !!official && !!game.settings.get(MODULE_ID, official.setting);
     }
 
     /* -------------------------------------------- */
@@ -210,42 +198,36 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
       const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
       const badge = (tone, key) => `<span class="sdpdf-badge sdpdf-badge--${tone}">${L(key)}</span>`;
 
-      // One card per layout: a selectable radio card when it can be generated, or a
-      // download/browse prompt for an official sheet the user has not supplied yet.
+      // One card per layout: a selectable radio card once the user has supplied that official
+      // sheet, or a download/browse prompt until they do.
       const card = key => {
         const official = OFFICIAL_TEMPLATES[key];
         const meta = LAYOUT_META[key];
-        const label = L(official ? official.label : BUNDLED_LABELS[key]);
+        const label = L(official.label);
         const desc = L(meta.desc);
         const icon = `<span class="sdpdf-card-icon"><i class="fa-solid ${meta.icon}"></i></span>`;
 
         if ( this.#available(key) ) {
           const checked = (key === this.selected) ? " checked" : "";
-          const tone = official ? "official" : "ready";
-          const badgeKey = official ? "SDPDF.Export.BadgeOfficial" : "SDPDF.Export.BadgeReady";
-          // A supplied official sheet shows the file it points at plus a "Change" control, so a
-          // wrong pick can be re-pointed here (the Browse button on the locked card is gone once
-          // a file is set). The button reuses the same browse action as the locked card.
-          let fileRow = "";
-          if ( official ) {
-            const filePath = game.settings.get(MODULE_ID, official.setting);
-            const fileName = filePath.split(/[\\/]/).pop();
-            fileRow = `<span class="sdpdf-card-file">
-              <i class="fa-solid fa-paperclip"></i>
-              <span class="sdpdf-card-filename" title="${esc(filePath)}">${esc(fileName)}</span>
-              <button type="button" class="sdpdf-card-change" data-action="browse" data-key="${key}">${L("SDPDF.Export.Change")}</button>
-            </span>`;
-          }
+          // A supplied sheet shows the file it points at plus a "Change" control, so a wrong pick
+          // can be re-pointed here (the Browse button on the locked card is gone once a file is
+          // set). The button reuses the same browse action as the locked card.
+          const filePath = game.settings.get(MODULE_ID, official.setting);
+          const fileName = filePath.split(/[\\/]/).pop();
           return `<label class="sdpdf-card">
             <input type="radio" name="template" value="${key}"${checked}>
             ${icon}
             <span class="sdpdf-card-body">
               <span class="sdpdf-card-head">
                 <span class="sdpdf-card-name">${label}</span>
-                ${badge(tone, badgeKey)}
+                ${badge("official", "SDPDF.Export.BadgeOfficial")}
               </span>
               <span class="sdpdf-card-desc">${desc}</span>
-              ${fileRow}
+              <span class="sdpdf-card-file">
+                <i class="fa-solid fa-paperclip"></i>
+                <span class="sdpdf-card-filename" title="${esc(filePath)}">${esc(fileName)}</span>
+                <button type="button" class="sdpdf-card-change" data-action="browse" data-key="${key}">${L("SDPDF.Export.Change")}</button>
+              </span>
             </span>
             <span class="sdpdf-card-check"><i class="fa-solid fa-circle-check"></i></span>
           </label>`;
@@ -381,13 +363,13 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
 /**
  * Generate a filled character sheet PDF for the given actor and offer it as a download.
  * @param {Actor} actor
- * @param {string} [template]  Layout key ("2024", "2014", "square2024", "fantasy2024"). Defaults to the
- *                             layout remembered from the last export.
+ * @param {string} [template]  Layout key ("2024" or "2014"). Defaults to the layout remembered from
+ *                             the last export.
  */
 async function generatePdf(actor, template=game.settings.get(MODULE_ID, "template")) {
   try {
-    const { path, Filler, official } = templateConfig(template);
-    if ( official && !path ) {
+    const { path, Filler } = templateConfig(template);
+    if ( !path ) {
       ui.notifications.error(game.i18n.localize("SDPDF.Export.MissingOfficial"));
       return;
     }
@@ -600,7 +582,7 @@ export class SheetFiller {
 
   /**
    * Embed the actor's portrait into the "CHARACTER IMAGE" push-button, if the template has one.
-   * Used by the 2014 sheet and the Square Sheet (2024); templates without the button are left alone.
+   * Used by the official 2014 sheet; the 2024 sheet has no such button and is left alone.
    */
   async embedPortrait(actor) {
     const src = actor.img;
@@ -1024,13 +1006,6 @@ export class SheetFiller {
  * to list the remainder.
  */
 export class Sheet2024Filler extends SheetFiller {
-  /**
-   * How to grow the single-line Tools field into its printed box. The official 2024 template ships
-   * a small single-line field, so it is repositioned and made multiline; a subclass whose template
-   * already provides a full-size multiline Tools field can override this to `null` to skip the move.
-   */
-  get toolsFieldRect() { return { y: 27, height: 24, multiline: true }; }
-
   /** Populate the form from a dnd5e character actor. */
   async fillActor(actor) {
     const system = actor.system;
@@ -1141,10 +1116,9 @@ export class Sheet2024Filler extends SheetFiller {
     const weapons = withCustomTraits(traitLabels(traits.weaponProf?.value, "weapon"), traits.weaponProf?.custom);
     this.text(F24.weaponProficiencies, weapons.join(", "), { fontSize: 8 });
     const tools = traitLabels(Object.keys(system.tools ?? {}), "tool");
-    // The printed Tools box holds two lines, but the field ships as a single line; grow it down
-    // into the available space and let it wrap. Templates that already ship a full-size multiline
-    // Tools field set toolsFieldRect to null so it is left in place.
-    if ( this.toolsFieldRect ) this.resizeField(F24.toolProficiencies, this.toolsFieldRect);
+    // The printed Tools box holds two lines, but the official template ships the field as a single
+    // line; grow it down into the available space and let it wrap.
+    this.resizeField(F24.toolProficiencies, { y: 27, height: 24, multiline: true });
     this.text(F24.toolProficiencies, tools.join(", "), { fontSize: 8 });
     const languages = withCustomTraits(traitLabels(traits.languages?.value, "languages"), traits.languages?.custom);
     this.text(F24.languages, languages.join(", "), { fontSize: 8 });
@@ -1332,30 +1306,6 @@ export class Sheet2024Filler extends SheetFiller {
         this.addCheckBox(page, `${prefix} Spell ${i} Material`, rects.material, info?.material);
       });
     }
-  }
-}
-
-/* -------------------------------------------- */
-/*  Square Sheet (2024) filler                  */
-/* -------------------------------------------- */
-
-/**
- * Fills our own Fan Content templates — the "Square Sheet (2024)"
- * (templates/DnD_Square_2024_Character-Sheet.pdf) and the hand-drawn "Fantasy Sheet (2024)"
- * (templates/DnD_Fantasy_2024_Character-Sheet.pdf). Both are original layouts that reuse the same
- * field names as the official 2024 sheet, so the {@link Sheet2024Filler} logic populates them
- * unchanged. They differ from the official sheet in two ways: each carries a "CHARACTER IMAGE"
- * portrait button (embedded here), and its Tools field is authored at full size, so the base Tools
- * reposition is skipped.
- */
-export class SquareSheet2024Filler extends Sheet2024Filler {
-  /** These templates ship a full-size, multiline Tools field, so leave it where it is. */
-  get toolsFieldRect() { return null; }
-
-  /** Populate the form, then embed the character portrait into the header image button. */
-  async fillActor(actor) {
-    await super.fillActor(actor);
-    await this.embedPortrait(actor);
   }
 }
 

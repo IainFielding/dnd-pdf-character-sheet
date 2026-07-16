@@ -333,12 +333,6 @@
   white-space: nowrap;
 }
 
-.sdpdf-export-dialog .sdpdf-badge--ready {
-  color: #b7e6c4;
-  background: rgba(74, 176, 112, 0.14);
-  border-color: rgba(74, 176, 112, 0.35);
-}
-
 .sdpdf-export-dialog .sdpdf-badge--official {
   color: var(--sdpdf-gold-bright);
   background: var(--sdpdf-gold-glow);
