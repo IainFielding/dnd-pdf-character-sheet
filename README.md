@@ -94,7 +94,7 @@ The official sheets are copyrighted and are not distributed with the module. To 
    browse to the PDF you downloaded.
 3. That layout is now a selectable option and stays available for future exports.
 
-![The export dialog before an official sheet has been provided](docs/img/ExportCharacterSheetUI-MissingOfficialCharacterSheets.png)
+![The export dialog before an official sheet has been provided](docs/img/ExportCharacterSheetUI-WithOfficialCharacterSheets.png)
 
 ---
 
@@ -135,7 +135,7 @@ normal browser download, so anything that blocks downloads will block it too.
 
 ## Support and feedback
 
-Bug reports and suggestions are welcome. Just log them in GitHub Issues. When reporting a problem, it helps to include the sheet layout you were using (2024 or 2014) and any messages from the
+Bug reports and suggestions are welcome. Just log them in [GitHub Issues](https://github.com/IainFielding/dnd-pdf-character-sheet/issues). When reporting a problem, it helps to include the sheet layout you were using (2024 or 2014) and any messages from the
 browser console.
 
 ---
