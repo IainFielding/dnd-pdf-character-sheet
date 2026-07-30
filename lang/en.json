@@ -3,6 +3,7 @@
   "SDPDF.Generating": "Generating PDF character sheet for {name}…",
   "SDPDF.Done": "PDF character sheet for {name} is downloading.",
   "SDPDF.Error": "Failed to generate the PDF character sheet. See the console (F12) for details.",
+  "SDPDF.UnsupportedCharacters": "The official sheets use fonts that cannot display some characters, so these were left out of the PDF: {characters}",
   "SDPDF.Settings.Template.Choice2024": "2024 Official Sheet",
   "SDPDF.Settings.Template.Choice2014": "2014 Official Sheet",
   "SDPDF.Export.Title": "Export Character Sheet",
@@ -19,5 +20,6 @@
   "SDPDF.Export.Change": "Change",
   "SDPDF.Export.Download": "Download the official PDF",
   "SDPDF.Export.NotProvided": "This official sheet is copyrighted and cannot be bundled with the module. Download your own copy, upload it to Foundry, then browse to it here.",
-  "SDPDF.Export.MissingOfficial": "That official sheet has not been provided yet. Use the export dialog to download and select it first."
+  "SDPDF.Export.MissingOfficial": "That official sheet has not been provided yet. Use the export dialog to download and select it first.",
+  "SDPDF.Export.TemplateUnavailable": "The PDF you selected could not be loaded from {path}. It may have been moved, renamed or deleted — upload it again and use \"Change\" in the export dialog to re-select it."
 }

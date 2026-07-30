@@ -379,9 +379,21 @@ async function generatePdf(actor, template=game.settings.get(MODULE_ID, "templat
     const bytes = await filler.save();
     downloadBytes(bytes, `${actor.name} - Character Sheet.pdf`);
     ui.notifications.info(game.i18n.format("SDPDF.Done", { name: actor.name }));
+    // The sheet still generates, but text in an unsupported alphabet was left out of it, so say so
+    // rather than leaving the user to wonder why a box came out blank.
+    if ( filler.droppedCharacters.size ) {
+      const characters = [...filler.droppedCharacters].join(" ");
+      console.warn(`${MODULE_ID} | Dropped characters the sheet's fonts cannot render: ${characters}`);
+      ui.notifications.warn(game.i18n.format("SDPDF.UnsupportedCharacters", { characters }));
+    }
   } catch(err) {
     console.error(`${MODULE_ID} | Failed to generate PDF`, err);
-    ui.notifications.error(game.i18n.localize("SDPDF.Error"));
+    // A missing template file is a user-fixable problem, so name the file and point them back at
+    // the picker rather than at the console.
+    if ( err instanceof TemplateUnavailableError ) {
+      ui.notifications.error(game.i18n.format("SDPDF.Export.TemplateUnavailable", { path: err.path }), { permanent: true });
+    }
+    else ui.notifications.error(game.i18n.localize("SDPDF.Error"));
   }
 }
 
@@ -442,6 +454,35 @@ function downloadBytes(bytes, filename) {
 /* -------------------------------------------- */
 
 /**
+ * Resolve a path as stored by Foundry's file picker into something `fetch` can take.
+ *
+ * Paths picked from the local data source are data-root relative and need the route prefix, but a
+ * picker pointed at a remote source (S3, The Forge's asset library, a shared URL) hands back a
+ * fully-qualified URL. Those must be fetched as-is: `getRoute` would prefix them with the local
+ * origin and the request would never reach the asset host.
+ * @param {string} src
+ * @returns {string}
+ */
+export function assetUrl(src) {
+  return /^(?:https?:|data:|blob:|\/\/)/.test(src) ? src : foundry.utils.getRoute(src);
+}
+
+/**
+ * The template PDF the user pointed the module at could not be fetched — most often because the
+ * file has since been moved, renamed or deleted, leaving the stored setting pointing at nothing.
+ * Distinguished from other failures so the export can tell the user to re-pick their file instead
+ * of sending them to the console.
+ */
+export class TemplateUnavailableError extends Error {
+  constructor(path, url, cause) {
+    super(`Could not load PDF template from ${url} (${cause})`);
+    this.name = "TemplateUnavailableError";
+    /** The path as stored in the setting, i.e. what the user needs to re-point. */
+    this.path = path;
+  }
+}
+
+/**
  * Base filler plus the 2014-layout `fillActor`. The low-level helpers (`create`, `text`, `check`,
  * `drawFeatureBlocks`, …) are template-agnostic; {@link Sheet2024Filler} extends this class and
  * overrides `fillActor` for the very different 2024 layout.
@@ -460,14 +501,34 @@ export class SheetFiller {
   #index = new Map();
 
   /**
-   * @param {string} [templatePath]              Module-relative path to the template PDF to fill.
+   * Characters dropped from the actor's text because the sheet's WinAnsi-encoded standard fonts
+   * cannot render them (Cyrillic, Greek, CJK, emoji, …). Collected so the export can tell the user
+   * why some text is missing rather than leaving them with mysteriously blank boxes.
+   * @type {Set<string>}
+   */
+  droppedCharacters = new Set();
+
+  /**
+   * @param {string} [templatePath]              Path to the template PDF to fill, as stored by the
+   *                                             file picker: either relative to the Foundry data
+   *                                             root or an absolute URL (S3, The Forge, …).
    * @param {ArrayBuffer|Uint8Array} [pdfBytes]  Template bytes; fetched from `templatePath` when omitted.
+   * @throws {TemplateUnavailableError}  When the file the user pointed the module at is no longer
+   *                                     there, so the caller can say so rather than "see the console".
    */
   static async create(templatePath, pdfBytes) {
     if ( !globalThis.PDFLib ) throw new Error("pdf-lib is not loaded");
     if ( !pdfBytes ) {
-      const response = await fetch(foundry.utils.getRoute(templatePath));
-      if ( !response.ok ) throw new Error(`Could not load PDF template (${response.status})`);
+      const url = assetUrl(templatePath);
+      let response;
+      // A network-level failure (offline, CORS, a dead asset host) rejects rather than returning a
+      // response, and is the same thing from the user's point of view: the file is not reachable.
+      try {
+        response = await fetch(url);
+      } catch(err) {
+        throw new TemplateUnavailableError(templatePath, url, err.message);
+      }
+      if ( !response.ok ) throw new TemplateUnavailableError(templatePath, url, response.status);
       pdfBytes = await response.arrayBuffer();
     }
     const filler = new this();
@@ -497,6 +558,29 @@ export class SheetFiller {
   /* -------------------------------------------- */
 
   /**
+   * Strip characters the sheet's fonts cannot encode, recording anything dropped in
+   * {@link SheetFiller#droppedCharacters}. Every piece of actor text must pass through here before
+   * it reaches pdf-lib: the standard fonts are WinAnsi-encoded, and pdf-lib does not report an
+   * unencodable character when the text is set — it throws while generating appearances during
+   * `save()`, which would abort the whole document. A single Cyrillic letter anywhere on the sheet
+   * was therefore enough to produce no PDF at all.
+   * @param {string} text
+   * @returns {string}
+   */
+  sanitize(text) {
+    const clean = sanitizeWinAnsi(text);
+    if ( clean === text ) return clean;
+    // Only count characters that vanished entirely; the ones sanitizeWinAnsi maps to an ASCII
+    // equivalent (curly quotes, dashes, ellipsis, non-breaking space) are rendered faithfully.
+    for ( const character of text ) {
+      if ( !sanitizeWinAnsi(character) && character.trim() ) this.droppedCharacters.add(character);
+    }
+    return clean;
+  }
+
+  /* -------------------------------------------- */
+
+  /**
    * Set a text field, silently skipping unknown fields.
    * @param {string} name                Canonical field name.
    * @param {*} value                    Value to write. Nullish values are skipped.
@@ -519,7 +603,7 @@ export class SheetFiller {
           field.acroField.setDefaultAppearance(`/Helv ${fontSize} Tf 0 g`);
         }
       }
-      field.setText(String(value));
+      field.setText(this.sanitize(String(value)));
     } catch(err) {
       console.warn(`${MODULE_ID} | Could not fill field "${name}"`, err);
     }
@@ -766,10 +850,11 @@ export class SheetFiller {
     // Flatten blocks into styled text segments
     const segments = [];
     for ( const block of blocks ) {
-      if ( block.heading ) segments.push({ text: block.heading, bold: true, size: 8, spaceBefore: 6 });
+      // Sanitized here as well as in wrapText, so drawn text feeds droppedCharacters too.
+      if ( block.heading ) segments.push({ text: this.sanitize(block.heading), bold: true, size: 8, spaceBefore: 6 });
       else {
-        segments.push({ text: block.title, bold: false, size: 7, spaceBefore: 4 });
-        if ( block.text ) segments.push({ text: block.text, bold: false, size: 7, spaceBefore: 1 });
+        segments.push({ text: this.sanitize(block.title), bold: false, size: 7, spaceBefore: 4 });
+        if ( block.text ) segments.push({ text: this.sanitize(block.text), bold: false, size: 7, spaceBefore: 1 });
       }
     }
 
@@ -891,7 +976,7 @@ export class SheetFiller {
         borderWidth: 0, borderColor: undefined, backgroundColor: undefined
       });
       field.setFontSize(fontSize);
-      const text = (value === null) || (value === undefined) ? "" : sanitizeWinAnsi(String(value));
+      const text = (value === null) || (value === undefined) ? "" : this.sanitize(String(value));
       if ( text ) field.setText(text);
     } catch(err) {
       console.warn(`${MODULE_ID} | Could not create text field "${name}"`, err);
@@ -1531,7 +1616,7 @@ export function sanitizeWinAnsi(text) {
  * @returns {Promise<Uint8Array|null>}
  */
 async function loadImageAsPng(src) {
-  const url = /^(?:https?:|data:|blob:)/.test(src) ? src : foundry.utils.getRoute(src);
+  const url = assetUrl(src);
   const response = await fetch(url);
   if ( !response.ok ) return null;
   const blob = await response.blob();

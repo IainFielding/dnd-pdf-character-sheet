@@ -9,7 +9,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  SheetFiller, signed, castingTimeAbbr, spellRowInfo, weaponNotes, damageSummary, sanitizeWinAnsi, wrapText
+  SheetFiller, assetUrl, signed, castingTimeAbbr, spellRowInfo, weaponNotes, damageSummary, sanitizeWinAnsi,
+  wrapText
 } from "../scripts/main.mjs";
 
 /* -------------------------------------------- */
@@ -118,6 +119,53 @@ test("sanitizeWinAnsi replaces characters the standard fonts cannot render", () 
   assert.equal(sanitizeWinAnsi("a b"), "a b");   // non-breaking space -> space
   assert.equal(sanitizeWinAnsi("emoji \u{1F600} gone"), "emoji  gone");  // unsupported dropped
   assert.equal(sanitizeWinAnsi("café"), "café");  // Latin-1 accents kept
+});
+
+test("sanitizeWinAnsi drops alphabets the standard fonts cannot encode", () => {
+  // Regression: pdf-lib does not reject these when the text is set, it throws while generating
+  // appearances in save(), so a single unencodable letter used to abort the whole document.
+  assert.equal(sanitizeWinAnsi("Борис"), "");
+  assert.equal(sanitizeWinAnsi("Boris (Б)"), "Boris ()");
+  assert.equal(sanitizeWinAnsi("Ελλην"), "");
+  assert.equal(sanitizeWinAnsi("日本語"), "");
+});
+
+test("sanitizeWinAnsi output stays inside the encodable range", () => {
+  // Every code point pdf-lib's WinAnsi encoder rejects, probed against the bundled build: the
+  // control range and the C1 block (minus 0x85, which WinAnsi maps to the ellipsis).
+  const unencodable = /[\x00-\x1F\x7F-\x84\x86-\x9F]/;
+  const clean = sanitizeWinAnsi("Борис  “x”—y… café\r\n\tz \u{1F600}");
+  assert.ok(!unencodable.test(clean.replace(/\n/g, "")), `"${clean}" contains an unencodable character`);
+});
+
+/* -------------------------------------------- */
+
+test("SheetFiller.sanitize records only the characters it drops", () => {
+  const filler = new SheetFiller();
+  assert.equal(filler.sanitize("Борис"), "");
+  assert.equal(filler.sanitize("“smart” - dashes—here…"), '"smart" - dashes-here...');
+  assert.equal(filler.sanitize("plain"), "plain");
+  // Substituted punctuation is rendered faithfully, so it is not reported; Cyrillic is.
+  assert.deepEqual([...filler.droppedCharacters].sort(), ["Б", "и", "о", "р", "с"]);
+});
+
+/* -------------------------------------------- */
+
+test("assetUrl routes local paths and leaves remote ones alone", () => {
+  // Stand-in for the one Foundry helper assetUrl uses, behaving like core's under a route prefix.
+  globalThis.foundry = { utils: { getRoute: path => `/vtt/${path.replace(/^\/+/, "")}` } };
+  try {
+    assert.equal(assetUrl("worlds/test/sheet.pdf"), "/vtt/worlds/test/sheet.pdf");
+    // Remote sources (S3, The Forge's asset library) hand the picker back an absolute URL; routing
+    // one would point the fetch at the Foundry origin instead of the asset host.
+    assert.equal(assetUrl("https://assets.forge-vtt.com/abc123/assets/sheet.pdf"),
+      "https://assets.forge-vtt.com/abc123/assets/sheet.pdf");
+    assert.equal(assetUrl("http://example.com/sheet.pdf"), "http://example.com/sheet.pdf");
+    assert.equal(assetUrl("//cdn.example.com/sheet.pdf"), "//cdn.example.com/sheet.pdf");
+    assert.equal(assetUrl("data:application/pdf;base64,AAAA"), "data:application/pdf;base64,AAAA");
+  } finally {
+    delete globalThis.foundry;
+  }
 });
 
 /* -------------------------------------------- */

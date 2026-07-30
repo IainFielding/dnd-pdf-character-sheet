@@ -159,8 +159,13 @@ downloadBytes(bytes, `${actor.name} - Character Sheet.pdf`);  // 4. download
 
 `SheetFiller.create` ([main.mjs:466](scripts/main.mjs#L466)) does the setup work:
 
-1. `fetch` the template bytes (via `foundry.utils.getRoute` so it works under a route
-   prefix), unless bytes were passed directly via the optional `pdfBytes` argument.
+1. `fetch` the template bytes (via `assetUrl`, which applies `foundry.utils.getRoute` to
+   data-relative paths so they work under a route prefix, and leaves absolute URLs from
+   remote file sources such as S3 or The Forge's asset library untouched), unless bytes
+   were passed directly via the optional `pdfBytes` argument. A file that cannot be
+   fetched — moved, renamed or deleted since the user picked it — raises
+   `TemplateUnavailableError`, which the export turns into a notification naming the path
+   rather than the generic "see the console" error.
 2. `PDFDocument.load(pdfBytes)` → `filler.doc`.
 3. `doc.getForm()` → `filler.form`.
 4. Embed two standard fonts (Helvetica + Helvetica-Bold) for direct drawing (§5).
