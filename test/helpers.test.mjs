@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   SheetFiller, assetUrl, signed, castingTimeAbbr, spellRowInfo, weaponNotes, damageSummary, sanitizeWinAnsi,
-  wrapText
+  normalizeWhitespace, wrapText
 } from "../scripts/main.mjs";
 
 /* -------------------------------------------- */
@@ -140,6 +140,33 @@ test("sanitizeWinAnsi output stays inside the encodable range", () => {
 
 /* -------------------------------------------- */
 
+test("sanitizeWinAnsi keeps the WinAnsi characters that sit outside Latin-1", () => {
+  // Regression: the whitelist used to stop at Latin-1, so these were stripped from sheets even
+  // though the standard fonts encode them perfectly well — a euro price simply disappeared.
+  assert.equal(sanitizeWinAnsi("€100"), "€100");
+  assert.equal(sanitizeWinAnsi("Škoda"), "Škoda");
+  assert.equal(sanitizeWinAnsi("Žižka"), "Žižka");
+  assert.equal(sanitizeWinAnsi("Œuvre œuf Ÿ"), "Œuvre œuf Ÿ");
+  assert.equal(sanitizeWinAnsi("dagger † ‡ ‰ • ™"), "dagger † ‡ ‰ • ™");
+});
+
+test("sanitizeWinAnsi still drops the Latin Extended letters WinAnsi has no room for", () => {
+  // This bug was never Cyrillic-specific: Polish, Czech, Hungarian and Turkish hit it too.
+  assert.equal(sanitizeWinAnsi("Łódź"), "ód");   // both Ł and ź are outside WinAnsi
+  assert.equal(sanitizeWinAnsi("Řehoř"), "eho");
+  assert.equal(sanitizeWinAnsi("őrült"), "rült");
+  assert.equal(sanitizeWinAnsi("Güneş"), "Güne");
+});
+
+test("normalizeWhitespace folds line endings and exotic spaces", () => {
+  assert.equal(normalizeWhitespace("a\r\nb"), "a\nb");
+  assert.equal(normalizeWhitespace("a\rb"), "a\nb");
+  assert.equal(normalizeWhitespace("a b\tc"), "a b c");
+  assert.equal(normalizeWhitespace("plain"), "plain");
+});
+
+/* -------------------------------------------- */
+
 test("SheetFiller.sanitize records only the characters it drops", () => {
   const filler = new SheetFiller();
   assert.equal(filler.sanitize("Борис"), "");
@@ -147,6 +174,29 @@ test("SheetFiller.sanitize records only the characters it drops", () => {
   assert.equal(filler.sanitize("plain"), "plain");
   // Substituted punctuation is rendered faithfully, so it is not reported; Cyrillic is.
   assert.deepEqual([...filler.droppedCharacters].sort(), ["Б", "и", "о", "р", "с"]);
+});
+
+test("SheetFiller.sanitize keeps everything an embedded Unicode font covers", () => {
+  const filler = new SheetFiller();
+  // Stand-in for an embedded font covering Latin, Cyrillic and general punctuation but not CJK,
+  // which is the shape of PT Sans's coverage.
+  filler.unicodeFont = { hasGlyph: cp => (cp < 0x0500) || ((cp >= 0x2000) && (cp <= 0x206F)) };
+  // Nothing is stripped: an embedded TrueType font draws .notdef rather than refusing to encode,
+  // so the text goes in whole and only the uncovered characters are reported.
+  assert.equal(filler.sanitize("Борис Волков"), "Борис Волков");
+  assert.equal(filler.sanitize("Łódź Güneş"), "Łódź Güneş");
+  assert.equal(filler.sanitize("“smart” — dashes…"), "“smart” — dashes…");
+  assert.equal(filler.droppedCharacters.size, 0);
+
+  assert.equal(filler.sanitize("日本語"), "日本語");
+  assert.deepEqual([...filler.droppedCharacters].sort(), ["日", "本", "語"].sort());
+});
+
+test("SheetFiller.sanitize still normalizes whitespace under a Unicode font", () => {
+  const filler = new SheetFiller();
+  filler.unicodeFont = { hasGlyph: () => true };
+  assert.equal(filler.sanitize("Борис\r\nВолков Ъ"), "Борис\nВолков Ъ");
+  assert.equal(filler.droppedCharacters.size, 0);
 });
 
 /* -------------------------------------------- */

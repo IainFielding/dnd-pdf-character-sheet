@@ -20,6 +20,13 @@ By downloading, installing, or using the Module you agree to the terms below.
      d) sell, sublicense, rent, or otherwise commercialise the Module or
         any part of it.
 
+   THIRD-PARTY COMPONENTS ARE EXCEPTED. The Module ships with third-party
+   software and fonts, each listed in THIRD-PARTY-NOTICES.md and redistributed
+   under its own licence (MIT, Apache-2.0, Zlib, and the SIL Open Font
+   License 1.1). Those licences grant you rights this clause does not, and they
+   govern those components in place of it. The restrictions above apply only to
+   the parts of the Module authored by the copyright holder.
+
    DISTRIBUTION VIA FOUNDRY VTT IS EXPRESSLY PERMITTED. The copyright holder
    grants Foundry Gaming, LLC and the official Foundry Virtual Tabletop
    package directory (and the package management system it operates) the

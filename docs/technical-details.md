@@ -51,6 +51,18 @@ We load a **pre-built, minified copy** rather than an npm import:
 > way to make it available everywhere without a bundler. Anything running under Node instead
 > pulls the same file in with `require("../lib/pdf-lib.min.js")`.
 
+### 2.1 `fontkit`, loaded on demand
+
+`lib/fontkit.umd.min.js` is vendored the same way but is **deliberately absent from
+`module.json`**. `pdf-lib` needs it only to parse a TrueType font, which only happens on sheets
+containing text the PDF standard fonts cannot render (§6.6). At ~740 KB it is not worth charging
+every user for, so `loadFontkit` injects a `<script>` tag the first time a sheet needs one and
+caches the promise for the session. Like `pdf-lib`, it registers a global — **`fontkit`**.
+
+Both vendored bundles are pinned in `package.json` purely so GitHub's dependency graph can raise
+Dependabot alerts against them, and CI checks each file's SHA-256 against that pin. When
+re-vendoring either one, update the pin, the hash in `.github/workflows/ci.yml`, and this section.
+
 ---
 
 ## 3. Core `pdf-lib` concepts you must know
@@ -345,13 +357,52 @@ for what you need; here, setting a raw annotation flag.
   pages). Note the transparent styling (`borderColor`/`backgroundColor` left `undefined`)
   so the printed template art shows through instead of a white box.
 
-### 6.6 WinAnsi sanitization
+### 6.6 Text encoding: sanitization, and the Unicode fallback
 
-Because our embedded standard fonts are WinAnsi-encoded, characters outside that set (smart
-quotes, em-dashes, ellipses, emoji…) will make `pdf-lib` throw when drawn or, worse, render
-as garbage. `sanitizeWinAnsi` ([main.mjs:1516](scripts/main.mjs#L1516)) replaces the common
-offenders (`'` `'` → `'`, `—` → `-`, `…` → `...`) and drops anything still unrepresentable.
-Always run text through it before `drawText`; `addTextField` and `wrapText` already do.
+The PDF standard fonts are **WinAnsi**-encoded, which covers Latin-1 and little else. The trap is
+*when* `pdf-lib` complains: `field.setText("Борис")` succeeds silently, and the encoder only runs
+when appearance streams are generated — inside `doc.save()`. That throw is not attributable to any
+one field, and it aborts the entire document. A single Cyrillic letter, Polish `ł` or Turkish `ş`
+anywhere on the sheet used to mean **no PDF at all**.
+
+Everything the actor contributes therefore goes through `SheetFiller#sanitize`, which does one of
+two things depending on how the sheet is being filled:
+
+- **Standard fonts.** `sanitizeWinAnsi` substitutes the common offenders (`'` `'` → `'`, `—` → `-`,
+  `…` → `...`) and drops anything still unencodable. The whitelist is Latin-1 **plus** the CP1252
+  block WinAnsi also encodes (`€ Š ž Œ † ‰ • ™` …) — omitting those silently ate euro signs.
+- **Embedded Unicode font.** Nothing is dropped. A TrueType font never refuses a character: it
+  draws `.notdef` for anything outside its coverage instead of throwing, so the whole bug class
+  disappears. Coverage is read from the font's own cmap so uncovered characters can still be
+  *reported* without being removed.
+
+Either way, whatever will not appear on the sheet lands in `droppedCharacters`.
+
+**The two-pass retry.** `generatePdf` fills the sheet once with the standard fonts. If that dropped
+anything, it throws the result away and refills a fresh copy with an embedded Unicode font
+(`Filler.create(path, undefined, { unicode: true })`). Detection is done by *filling* rather than by
+scanning the actor up front, because the actor's own text is only half the problem — a non-English
+Foundry contributes localized ability names, trait labels and casting times too. All-Latin exports
+never enter the second pass, so they pay nothing.
+
+**The font.** Bundled PT Sans (`fonts/`, SIL OFL 1.1) covers Latin, Latin Extended and Cyrillic.
+`fontkit` is ~740 KB and the fonts ~890 KB, so neither is in `module.json`'s `scripts`: `loadFontkit`
+injects a `<script>` on demand. Users needing Greek, Vietnamese or CJK can point the
+`customFontPath` setting at their own `.ttf`; a font that fails to load falls back to the bundled
+one with a notification rather than costing the user their sheet.
+
+**Saving with a custom font is order-dependent** — this is the part that bites:
+
+1. Fill every field **first**. `save()` only regenerates fields still marked dirty, and those go
+   through Helvetica — straight back into the original crash.
+2. `form.updateFieldAppearances(font)` to rebuild every appearance against the embedded font.
+3. Register the font in the AcroForm `/DR` so a viewer can resolve it when the *user* edits a field
+   and the appearance is rebuilt outside our control (`#registerFormFont`).
+4. `doc.save({ updateFieldAppearances: false })` — letting `save()` redo step 2 undoes it.
+
+Checkboxes are unaffected (`pdf-lib` draws them with ZapfDingbats), and explicit `setFontSize`
+values survive step 2; only the font name is swapped. Note that `text()`'s fallback for fields with
+no `/DA` entry must name the font in use, not a hardcoded `/Helv`.
 
 ### 6.7 HTML → plain text
 
@@ -432,7 +483,7 @@ green CI run.
 
 | File | What it guards |
 | --- | --- |
-| [test/helpers.test.mjs](test/helpers.test.mjs) | The pure formatting/parsing helpers exported from `main.mjs`: `signed`, `castingTimeAbbr`, `spellRowInfo`, `weaponNotes`, `damageSummary`, `sanitizeWinAnsi`, `wrapText`, and `SheetFiller.normalize`. |
+| [test/helpers.test.mjs](test/helpers.test.mjs) | The pure formatting/parsing helpers exported from `main.mjs`: `signed`, `castingTimeAbbr`, `spellRowInfo`, `weaponNotes`, `damageSummary`, `sanitizeWinAnsi`, `normalizeWhitespace`, `wrapText`, `assetUrl`, and `SheetFiller.normalize`/`sanitize` (both the WinAnsi and the Unicode-font paths). |
 | [test/field-map.test.mjs](test/field-map.test.mjs) | The 2014 and 2024 field-name maps: that they are internally consistent (no duplicate/typo'd names, expected keys present). |
 
 ### 10.2 Why the tests are shaped this way
@@ -490,11 +541,13 @@ alone. Its steps:
    real version and the release's manifest/download URLs. This edit is in-CI only and is
    **not** committed back.
 3. **Validate the manifest** again with `jq empty` after substitution.
-4. **Zip the module**: `module.json`, `README.md`, `LICENSE`, `scripts/`, `lib/`, `lang/`,
-   `styles/`. **Note what is *not* shipped:** `test/`, `docs/`, and this file. There is no
-   `templates/` directory — the sheets are user-supplied (§1). If you add a new top-level
-   directory the module needs at runtime, you must add it to the `zip` step or it won't reach
-   users.
+4. **Zip the module**: `module.json`, `README.md`, `LICENSE`, `THIRD-PARTY-NOTICES.md`,
+   `scripts/`, `lib/`, `lang/`, `styles/`, `fonts/`. **Note what is *not* shipped:** `test/`,
+   `docs/`, and this file. There is no `templates/` directory — the sheets are user-supplied (§1).
+   If you add a new top-level directory the module needs at runtime, you must add it to the `zip`
+   step or it won't reach users. `zip` only *warns* on a path that does not exist, so a typo here
+   ships a broken module rather than failing the release — `fonts/` in particular is loaded at
+   runtime and its absence would only surface as a failed export on a non-Latin sheet.
 5. **Attach `module.json` + `module.zip`** to the GitHub release.
 
 Foundry's install/update check reads the `latest_manifest_url`

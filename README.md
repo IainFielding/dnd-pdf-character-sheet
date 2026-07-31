@@ -115,6 +115,26 @@ there. If you hit this, please open a GitHub issue so I can take a look.
 
 ---
 
+## Non-English characters
+
+Character names, items and biographies written in Cyrillic, or with letters like
+**ł ř ő ş ă č**, are supported. The official sheets' own fonts only cover Western
+European characters, so when the module notices your sheet needs more it embeds a
+font (PT Sans) that covers Latin, Central and Eastern European, and Cyrillic text.
+The exported sheet stays fully form-fillable — you can still type in the boxes.
+
+This is automatic and there is nothing to configure. Sheets that are entirely in
+English are unaffected and are built exactly as before.
+
+**Greek, Vietnamese, Chinese, Japanese or Korean** are not covered by the bundled
+font. If your sheet needs one of those, characters that cannot be drawn are left
+out and the module tells you which ones. You can fix this yourself: put a font
+file (`.ttf` or `.otf`) that covers your language somewhere in your Foundry data
+directory, then set **Font for non-Latin text** in *Configure Settings → Module
+Settings*. Leave that setting empty otherwise.
+
+---
+
 ## Troubleshooting
 
 **The "PDF Character Sheet" option doesn't appear.**
@@ -131,6 +151,11 @@ the details, and please include that information if you report the issue.
 Check your browser's pop-up or download settings. The file is delivered as a
 normal browser download, so anything that blocks downloads will block it too.
 
+**Some characters are missing from the sheet.**
+The module reports exactly which ones it could not draw. See
+[Non-English characters](#non-english-characters) above — pointing the module at
+a font that covers your language fixes it.
+
 ---
 
 ## Support and feedback
@@ -143,3 +168,8 @@ browser console.
 ## License
 
 See the [LICENSE](LICENSE) file for details.
+
+The module ships with third-party software and fonts — pdf-lib, fontkit and PT
+Sans — each under its own licence. They are listed in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Character sheets you export
+carry no licence obligations of their own.
