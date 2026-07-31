@@ -1,8 +1,9 @@
 {
   "name": "sogrom-dnd5e-character-sheet-pdf",
   "private": true,
-  "description": "Dependency manifest only, this repo has no npm toolchain and nothing is ever installed from it. It exists so GitHub's dependency graph and Dependabot alerts can flag published CVEs against the vendored lib/pdf-lib.min.js. The version pinned here MUST match the vendored file.",
+  "description": "Dependency manifest only, this repo has no npm toolchain and nothing is ever installed from it. It exists so GitHub's dependency graph and Dependabot alerts can flag published CVEs against the vendored bundles in lib/. The versions pinned here MUST match the vendored files: lib/pdf-lib.min.js and lib/fontkit.umd.min.js.",
   "dependencies": {
-    "pdf-lib": "1.17.1"
+    "pdf-lib": "1.17.1",
+    "@pdf-lib/fontkit": "1.1.1"
   }
 }

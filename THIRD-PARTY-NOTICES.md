@@ -47,8 +47,11 @@ Parses TrueType fonts so pdf-lib can embed one. Loaded on demand, only when a sh
 the PDF standard fonts cannot render.
 Upstream: <https://github.com/Hopding/fontkit> (a repackaging of <https://github.com/foliojs/fontkit>)
 
-Licensed under the MIT License, as declared by the published package. The MIT terms are reproduced
-in full under *pdf-lib* above; they apply here with fontkit's own copyright holders.
+Licensed under the **MIT License**. This is the licence declared by the published package itself —
+both `@pdf-lib/fontkit@1.1.1`'s `package.json` and its npm registry metadata state `"license":
+"MIT"`. Neither the published package nor either upstream repository ships a `LICENSE` file, so no
+verbatim text or copyright line is reproduced here rather than invent one. The MIT terms are set
+out in full under *pdf-lib* above and apply equally to fontkit.
 
 The bundle embeds `pako`, licensed MIT AND Zlib:
 
