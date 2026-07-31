@@ -121,7 +121,7 @@ Character names, items and biographies written in Cyrillic, or with letters like
 **ł ř ő ş ă č**, are supported. The official sheets' own fonts only cover Western
 European characters, so when the module notices your sheet needs more it embeds a
 font (PT Sans) that covers Latin, Central and Eastern European, and Cyrillic text.
-The exported sheet stays fully form-fillable — you can still type in the boxes.
+The exported sheet stays fully form-fillable so you can still type in the boxes if needed.
 
 This is automatic and there is nothing to configure. Sheets that are entirely in
 English are unaffected and are built exactly as before.
@@ -153,7 +153,7 @@ normal browser download, so anything that blocks downloads will block it too.
 
 **Some characters are missing from the sheet.**
 The module reports exactly which ones it could not draw. See
-[Non-English characters](#non-english-characters) above — pointing the module at
+[Non-English characters](#non-english-characters) above pointing the module at
 a font that covers your language fixes it.
 
 ---
