@@ -77,6 +77,20 @@ if ( globalThis.Hooks ) {
       });
     }
 
+    // An optional replacement for the bundled PT Sans, for alphabets it does not cover (Greek,
+    // Vietnamese, CJK, …). Deliberately the only setting shown in the settings menu rather than in
+    // the export dialog: almost nobody needs it, and those who do only need it once. Left empty,
+    // the bundled font is used. `filePicker: "font"` renders a file browser limited to font files.
+    game.settings.register(MODULE_ID, "customFontPath", {
+      name: "SDPDF.Settings.CustomFont.Name",
+      hint: "SDPDF.Settings.CustomFont.Hint",
+      scope: "client",
+      config: true,
+      type: String,
+      filePicker: "font",
+      default: ""
+    });
+
     const module = game.modules.get(MODULE_ID);
     module.api = {
       // Open the layout picker, then generate the chosen sheet.
@@ -374,14 +388,43 @@ async function generatePdf(actor, template=game.settings.get(MODULE_ID, "templat
       return;
     }
     ui.notifications.info(game.i18n.format("SDPDF.Generating", { name: actor.name }));
-    const filler = await Filler.create(path);
+    let filler = await Filler.create(path);
     await filler.fillActor(actor);
+
+    // The standard fonts cover Latin-1 only, so a Cyrillic name, a Polish "ł" or a Turkish "ş"
+    // just lost characters. Rather than guess up front which sheets need more — the actor's own
+    // text is only half of it, since a non-English Foundry contributes localized ability names,
+    // trait labels and casting times too — fill once and let the result say. If anything was
+    // dropped, redo the whole sheet with an embedded Unicode font, which nothing has to be
+    // stripped for. Filling twice costs a second parse of the template, and only for the users
+    // who would otherwise get an incomplete sheet.
+    if ( filler.droppedCharacters.size ) {
+      const unicodeFiller = await Filler.create(path, undefined, { unicode: true });
+      if ( unicodeFiller.unicodeFont ) {
+        await unicodeFiller.fillActor(actor);
+        filler = unicodeFiller;
+      }
+    }
+
     const bytes = await filler.save();
     downloadBytes(bytes, `${actor.name} - Character Sheet.pdf`);
     ui.notifications.info(game.i18n.format("SDPDF.Done", { name: actor.name }));
+    // Anything still missing is outside even the Unicode font's coverage (CJK, emoji), or no font
+    // could be loaded at all. Either way the sheet generated, so say what is not on it rather than
+    // leaving the user to wonder why a box came out blank.
+    if ( filler.droppedCharacters.size ) {
+      const characters = [...filler.droppedCharacters].join(" ");
+      console.warn(`${MODULE_ID} | Dropped characters no available font can render: ${characters}`);
+      ui.notifications.warn(game.i18n.format("SDPDF.UnsupportedCharacters", { characters }));
+    }
   } catch(err) {
     console.error(`${MODULE_ID} | Failed to generate PDF`, err);
-    ui.notifications.error(game.i18n.localize("SDPDF.Error"));
+    // A missing template file is a user-fixable problem, so name the file and point them back at
+    // the picker rather than at the console.
+    if ( err instanceof TemplateUnavailableError ) {
+      ui.notifications.error(game.i18n.format("SDPDF.Export.TemplateUnavailable", { path: err.path }), { permanent: true });
+    }
+    else ui.notifications.error(game.i18n.localize("SDPDF.Error"));
   }
 }
 
@@ -442,6 +485,133 @@ function downloadBytes(bytes, filename) {
 /* -------------------------------------------- */
 
 /**
+ * Resolve a path as stored by Foundry's file picker into something `fetch` can take.
+ *
+ * Paths picked from the local data source are data-root relative and need the route prefix, but a
+ * picker pointed at a remote source (S3, The Forge's asset library, a shared URL) hands back a
+ * fully-qualified URL. Those must be fetched as-is: `getRoute` would prefix them with the local
+ * origin and the request would never reach the asset host.
+ * @param {string} src
+ * @returns {string}
+ */
+export function assetUrl(src) {
+  return /^(?:https?:|data:|blob:|\/\/)/.test(src) ? src : foundry.utils.getRoute(src);
+}
+
+/* -------------------------------------------- */
+/*  Unicode fonts                               */
+/* -------------------------------------------- */
+
+/**
+ * The font used when the sheet's standard fonts cannot render the actor's text. PT Sans covers
+ * Latin, Latin Extended (Polish, Czech, Hungarian, Turkish, Romanian, Croatian, …) and Cyrillic,
+ * which is every alphabet this module has been asked for, and sets narrower than the alternatives
+ * — worth having on a sheet whose boxes are already tight. It is licensed under the SIL Open Font
+ * License 1.1; see fonts/OFL.txt and THIRD-PARTY-NOTICES.md.
+ */
+const BUNDLED_FONT = {
+  regular: `modules/${MODULE_ID}/fonts/PTSans-Regular.ttf`,
+  bold: `modules/${MODULE_ID}/fonts/PTSans-Bold.ttf`
+};
+
+/** Vendored fontkit, which pdf-lib needs in order to parse and embed a TrueType font. */
+const FONTKIT_PATH = `modules/${MODULE_ID}/lib/fontkit.umd.min.js`;
+
+/**
+ * Load the vendored fontkit build, once per session.
+ *
+ * fontkit is ~740 KB and only ever needed by sheets containing text the standard fonts cannot
+ * render, so it is deliberately left out of the module's `scripts` manifest and injected on demand
+ * instead. An all-Latin export never pays for it.
+ * @returns {Promise<object>}  The `fontkit` global the UMD bundle installs.
+ */
+let fontkitLoad;
+function loadFontkit() {
+  if ( globalThis.fontkit ) return Promise.resolve(globalThis.fontkit);
+  fontkitLoad ??= new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = foundry.utils.getRoute(FONTKIT_PATH);
+    script.onload = () => globalThis.fontkit
+      ? resolve(globalThis.fontkit)
+      : reject(new Error("fontkit loaded but did not register a global"));
+    script.onerror = () => reject(new Error(`Could not load fontkit from ${FONTKIT_PATH}`));
+    document.head.appendChild(script);
+  });
+  return fontkitLoad;
+}
+
+/**
+ * Fetch the raw bytes of the font to fall back on, preferring a font the user supplied in the
+ * module settings over the bundled PT Sans. A custom font replaces both weights: only one file is
+ * asked for, so bold headings render in the regular weight rather than in a mismatched face.
+ * @returns {Promise<{regular: ArrayBuffer, bold: ArrayBuffer, custom: boolean}>}
+ */
+async function fetchFontBytes() {
+  const custom = game.settings.get(MODULE_ID, "customFontPath");
+  const read = async path => {
+    const response = await fetch(assetUrl(path));
+    if ( !response.ok ) throw new Error(`${path} (${response.status})`);
+    return response.arrayBuffer();
+  };
+  if ( custom ) {
+    try {
+      const bytes = await read(custom);
+      return { regular: bytes, bold: bytes, custom: true };
+    } catch(err) {
+      // A custom font that cannot be read must not cost the user their sheet; fall through to the
+      // bundled one and say why, since they explicitly asked for the other.
+      console.warn(`${MODULE_ID} | Could not load the custom font, using the bundled one instead`, err);
+      ui.notifications.warn(game.i18n.format("SDPDF.CustomFontFailed", { path: custom }));
+    }
+  }
+  const [regular, bold] = await Promise.all([read(BUNDLED_FONT.regular), read(BUNDLED_FONT.bold)]);
+  return { regular, bold, custom: false };
+}
+
+/**
+ * Embed a Unicode font into a document so its form fields and drawn text can carry any alphabet
+ * the font covers.
+ *
+ * Unlike the WinAnsi standard fonts, an embedded TrueType font never refuses a character: anything
+ * outside its coverage is quietly drawn as `.notdef` instead of throwing during `save()`. The
+ * glyph coverage is therefore read separately, straight from the font's own character map, so the
+ * export can still warn about text that will come out as blanks.
+ * @param {import("pdf-lib").PDFDocument} doc
+ * @returns {Promise<{regular: PDFFont, bold: PDFFont, hasGlyph: (codePoint: number) => boolean}|null>}
+ *          Null when no usable font could be loaded, leaving the caller on the WinAnsi path.
+ */
+async function embedUnicodeFont(doc) {
+  try {
+    const [fontkit, bytes] = await Promise.all([loadFontkit(), fetchFontBytes()]);
+    doc.registerFontkit(fontkit);
+    // Subsetting keeps only the glyphs actually used, so the font adds ~200 KB to the output
+    // rather than its full size on disk.
+    const regular = await doc.embedFont(bytes.regular, { subset: true });
+    const bold = (bytes.bold === bytes.regular) ? regular : await doc.embedFont(bytes.bold, { subset: true });
+    const cmap = fontkit.create(new Uint8Array(bytes.regular));
+    return { regular, bold, hasGlyph: codePoint => cmap.hasGlyphForCodePoint(codePoint) };
+  } catch(err) {
+    console.warn(`${MODULE_ID} | Could not embed a Unicode font; falling back to plain text`, err);
+    return null;
+  }
+}
+
+/**
+ * The template PDF the user pointed the module at could not be fetched — most often because the
+ * file has since been moved, renamed or deleted, leaving the stored setting pointing at nothing.
+ * Distinguished from other failures so the export can tell the user to re-pick their file instead
+ * of sending them to the console.
+ */
+export class TemplateUnavailableError extends Error {
+  constructor(path, url, cause) {
+    super(`Could not load PDF template from ${url} (${cause})`);
+    this.name = "TemplateUnavailableError";
+    /** The path as stored in the setting, i.e. what the user needs to re-point. */
+    this.path = path;
+  }
+}
+
+/**
  * Base filler plus the 2014-layout `fillActor`. The low-level helpers (`create`, `text`, `check`,
  * `drawFeatureBlocks`, …) are template-agnostic; {@link Sheet2024Filler} extends this class and
  * overrides `fillActor` for the very different 2024 layout.
@@ -460,20 +630,54 @@ export class SheetFiller {
   #index = new Map();
 
   /**
-   * @param {string} [templatePath]              Module-relative path to the template PDF to fill.
-   * @param {ArrayBuffer|Uint8Array} [pdfBytes]  Template bytes; fetched from `templatePath` when omitted.
+   * The embedded Unicode font this sheet is being filled with, or null when it is being filled
+   * with the WinAnsi standard fonts. Set by {@link SheetFiller.create}; see {@link embedUnicodeFont}.
+   * @type {{regular: PDFFont, bold: PDFFont, hasGlyph: (codePoint: number) => boolean}|null}
    */
-  static async create(templatePath, pdfBytes) {
+  unicodeFont = null;
+
+  /**
+   * Characters of the actor's text that will not appear on the sheet: those the WinAnsi standard
+   * fonts cannot encode (Cyrillic, Greek, CJK, emoji, …), or — once a Unicode font is in use —
+   * those it has no glyph for. Collected so the export can tell the user why some text is missing
+   * rather than leaving them with mysteriously blank boxes, and so {@link generatePdf} knows to
+   * retry the sheet with a Unicode font.
+   * @type {Set<string>}
+   */
+  droppedCharacters = new Set();
+
+  /**
+   * @param {string} [templatePath]              Path to the template PDF to fill, as stored by the
+   *                                             file picker: either relative to the Foundry data
+   *                                             root or an absolute URL (S3, The Forge, …).
+   * @param {ArrayBuffer|Uint8Array} [pdfBytes]  Template bytes; fetched from `templatePath` when omitted.
+   * @param {object} [options]
+   * @param {boolean} [options.unicode]          Embed a Unicode font and fill with it, instead of
+   *                                             the WinAnsi standard fonts. Silently falls back to
+   *                                             the standard fonts if no font can be loaded.
+   * @throws {TemplateUnavailableError}  When the file the user pointed the module at is no longer
+   *                                     there, so the caller can say so rather than "see the console".
+   */
+  static async create(templatePath, pdfBytes, { unicode=false } = {}) {
     if ( !globalThis.PDFLib ) throw new Error("pdf-lib is not loaded");
     if ( !pdfBytes ) {
-      const response = await fetch(foundry.utils.getRoute(templatePath));
-      if ( !response.ok ) throw new Error(`Could not load PDF template (${response.status})`);
+      const url = assetUrl(templatePath);
+      let response;
+      // A network-level failure (offline, CORS, a dead asset host) rejects rather than returning a
+      // response, and is the same thing from the user's point of view: the file is not reachable.
+      try {
+        response = await fetch(url);
+      } catch(err) {
+        throw new TemplateUnavailableError(templatePath, url, err.message);
+      }
+      if ( !response.ok ) throw new TemplateUnavailableError(templatePath, url, response.status);
       pdfBytes = await response.arrayBuffer();
     }
     const filler = new this();
     filler.doc = await PDFLib.PDFDocument.load(pdfBytes);
     filler.form = filler.doc.getForm();
-    filler.fonts = {
+    if ( unicode ) filler.unicodeFont = await embedUnicodeFont(filler.doc);
+    filler.fonts = filler.unicodeFont ?? {
       regular: await filler.doc.embedFont(PDFLib.StandardFonts.Helvetica),
       bold: await filler.doc.embedFont(PDFLib.StandardFonts.HelveticaBold)
     };
@@ -491,7 +695,77 @@ export class SheetFiller {
   }
 
   async save() {
-    return this.doc.save();
+    if ( !this.unicodeFont ) return this.doc.save();
+    // Every field's appearance has to be regenerated against the embedded font: pdf-lib writes
+    // appearances with the default Helvetica, which is exactly what cannot encode this text. The
+    // font also goes into the AcroForm's default resources so a viewer can still resolve it when
+    // the user edits a field and the appearance is rebuilt outside our control.
+    this.#registerFormFont(this.unicodeFont.regular);
+    this.form.updateFieldAppearances(this.unicodeFont.regular);
+    // updateFieldAppearances has just done the work; letting save() redo it would put every field
+    // back through Helvetica and throw.
+    return this.doc.save({ updateFieldAppearances: false });
+  }
+
+  /* -------------------------------------------- */
+
+  /** Add an embedded font to the AcroForm's default resource dictionary, creating it if absent. */
+  #registerFormFont(font) {
+    try {
+      const { PDFName, PDFDict } = PDFLib;
+      const acroForm = this.form.acroForm.dict;
+      let resources = acroForm.lookup(PDFName.of("DR"), PDFDict);
+      if ( !resources ) {
+        resources = this.doc.context.obj({});
+        acroForm.set(PDFName.of("DR"), resources);
+      }
+      let fonts = resources.lookup(PDFName.of("Font"), PDFDict);
+      if ( !fonts ) {
+        fonts = this.doc.context.obj({});
+        resources.set(PDFName.of("Font"), fonts);
+      }
+      fonts.set(PDFName.of(font.name), font.ref);
+    } catch(err) {
+      // Only affects re-rendering by the viewer; the appearances we generate are already correct.
+      console.warn(`${MODULE_ID} | Could not register the font in the form's resources`, err);
+    }
+  }
+
+  /* -------------------------------------------- */
+
+  /**
+   * Make a piece of the actor's text safe for whichever font this sheet is being filled with, and
+   * record anything that will not appear in {@link SheetFiller#droppedCharacters}. Every piece of
+   * actor text must pass through here before it reaches pdf-lib.
+   *
+   * With the standard fonts the unencodable characters have to be removed: they are WinAnsi-encoded
+   * and pdf-lib does not report an unencodable character when the text is set — it throws while
+   * generating appearances during `save()`, which aborts the whole document. A single Cyrillic
+   * letter anywhere on the sheet was therefore enough to produce no PDF at all.
+   *
+   * With an embedded Unicode font nothing is removed: it renders whatever it has a glyph for and
+   * quietly substitutes `.notdef` for the rest, so characters outside its coverage are only
+   * recorded, and come out as blanks rather than taking the sheet down with them.
+   * @param {string} text
+   * @returns {string}
+   */
+  sanitize(text) {
+    if ( this.unicodeFont ) {
+      for ( const character of text ) {
+        if ( character.trim() && !this.unicodeFont.hasGlyph(character.codePointAt(0)) ) {
+          this.droppedCharacters.add(character);
+        }
+      }
+      return normalizeWhitespace(text);
+    }
+    const clean = sanitizeWinAnsi(text);
+    if ( clean === text ) return clean;
+    // Only count characters that vanished entirely; the ones sanitizeWinAnsi maps to an ASCII
+    // equivalent (curly quotes, dashes, ellipsis, non-breaking space) are rendered faithfully.
+    for ( const character of text ) {
+      if ( !sanitizeWinAnsi(character) && character.trim() ) this.droppedCharacters.add(character);
+    }
+    return clean;
   }
 
   /* -------------------------------------------- */
@@ -515,11 +789,13 @@ export class SheetFiller {
         try {
           field.setFontSize(fontSize);
         } catch(err) {
-          // Some template fields have no /DA entry; write one directly instead
-          field.acroField.setDefaultAppearance(`/Helv ${fontSize} Tf 0 g`);
+          // Most fields on the official sheets have no /DA entry, which is what setFontSize needs;
+          // write one directly instead, naming whichever font this sheet is being filled with.
+          const resource = this.unicodeFont ? this.unicodeFont.regular.name : "Helv";
+          field.acroField.setDefaultAppearance(`/${resource} ${fontSize} Tf 0 g`);
         }
       }
-      field.setText(String(value));
+      field.setText(this.sanitize(String(value)));
     } catch(err) {
       console.warn(`${MODULE_ID} | Could not fill field "${name}"`, err);
     }
@@ -766,10 +1042,11 @@ export class SheetFiller {
     // Flatten blocks into styled text segments
     const segments = [];
     for ( const block of blocks ) {
-      if ( block.heading ) segments.push({ text: block.heading, bold: true, size: 8, spaceBefore: 6 });
+      // Sanitizing here rather than in wrapText keeps the measuring safe and feeds droppedCharacters.
+      if ( block.heading ) segments.push({ text: this.sanitize(block.heading), bold: true, size: 8, spaceBefore: 6 });
       else {
-        segments.push({ text: block.title, bold: false, size: 7, spaceBefore: 4 });
-        if ( block.text ) segments.push({ text: block.text, bold: false, size: 7, spaceBefore: 1 });
+        segments.push({ text: this.sanitize(block.title), bold: false, size: 7, spaceBefore: 4 });
+        if ( block.text ) segments.push({ text: this.sanitize(block.text), bold: false, size: 7, spaceBefore: 1 });
       }
     }
 
@@ -891,7 +1168,7 @@ export class SheetFiller {
         borderWidth: 0, borderColor: undefined, backgroundColor: undefined
       });
       field.setFontSize(fontSize);
-      const text = (value === null) || (value === undefined) ? "" : sanitizeWinAnsi(String(value));
+      const text = (value === null) || (value === undefined) ? "" : this.sanitize(String(value));
       if ( text ) field.setText(text);
     } catch(err) {
       console.warn(`${MODULE_ID} | Could not create text field "${name}"`, err);
@@ -1473,7 +1750,12 @@ export function castingTimeAbbr(spell) {
 }
 
 /**
- * Greedy word-wrap for direct page drawing with a WinAnsi-encoded standard font.
+ * Greedy word-wrap for direct page drawing.
+ *
+ * The text must already have been through {@link SheetFiller#sanitize}: measuring a character the
+ * font cannot encode throws, so passing raw actor text here would fail on the same character that
+ * used to take down the whole document. {@link SheetFiller#drawFeatureBlocks} sanitizes for us,
+ * which is also what lets this work with an embedded Unicode font, where nothing is stripped.
  * @param {string} text       Text to wrap; embedded newlines are honoured.
  * @param {PDFFont} font      Embedded pdf-lib font used to measure widths.
  * @param {number} size       Font size in points.
@@ -1482,7 +1764,7 @@ export function castingTimeAbbr(spell) {
  */
 export function wrapText(text, font, size, maxWidth) {
   const lines = [];
-  for ( const paragraph of sanitizeWinAnsi(text).split("\n") ) {
+  for ( const paragraph of text.split("\n") ) {
     if ( !paragraph.trim() ) {
       lines.push("");
       continue;
@@ -1512,16 +1794,32 @@ export function wrapText(text, font, size, maxWidth) {
   return lines;
 }
 
+/**
+ * Fold the whitespace variants no PDF font handles well into plain spaces and newlines. Applied
+ * whichever font the sheet is filled with, so it is kept separate from the WinAnsi filtering below.
+ */
+export function normalizeWhitespace(text) {
+  return text.replace(/\r\n?/g, "\n").replace(/[ \t]/g, " ");
+}
+
+/**
+ * Characters WinAnsi encodes that sit outside Latin-1, so the filter below has to name them
+ * explicitly - almost all of the CP1252 block at 0x80-0x9F. Without them a price in euros, or the
+ * S-caron in "Skoda", was dropped from sheets even though the standard fonts render them fine.
+ */
+const WINANSI_EXTRAS = "€ƒ†‡‰Š‹ŒŽŸš›œž•™";
+
+/** Everything the WinAnsi-encoded standard fonts cannot encode at all. */
+const WINANSI_UNSUPPORTED = new RegExp(`[^\\x20-\\x7E\\n\\u00A1-\\u00FF${WINANSI_EXTRAS}]`, "g");
+
 /** Replace or drop characters the WinAnsi-encoded standard fonts cannot render. */
 export function sanitizeWinAnsi(text) {
-  return text
+  return normalizeWhitespace(text)
     .replace(/[‘’‚′]/g, "'")
     .replace(/[“”„″]/g, "\"")
     .replace(/[–—−]/g, "-")
     .replace(/…/g, "...")
-    .replace(/[\u00A0\t]/g, " ")
-    .replace(/\r/g, "")
-    .replace(/[^\x20-\x7E\n¡-ÿ]/g, "");
+    .replace(WINANSI_UNSUPPORTED, "");
 }
 
 /**
@@ -1531,7 +1829,7 @@ export function sanitizeWinAnsi(text) {
  * @returns {Promise<Uint8Array|null>}
  */
 async function loadImageAsPng(src) {
-  const url = /^(?:https?:|data:|blob:)/.test(src) ? src : foundry.utils.getRoute(src);
+  const url = assetUrl(src);
   const response = await fetch(url);
   if ( !response.ok ) return null;
   const blob = await response.blob();

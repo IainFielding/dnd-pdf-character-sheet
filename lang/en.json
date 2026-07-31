@@ -3,8 +3,12 @@
   "SDPDF.Generating": "Generating PDF character sheet for {name}…",
   "SDPDF.Done": "PDF character sheet for {name} is downloading.",
   "SDPDF.Error": "Failed to generate the PDF character sheet. See the console (F12) for details.",
+  "SDPDF.UnsupportedCharacters": "No available font can display these characters, so they were left out of the PDF: {characters}. You can point the module at a font that covers them in the module settings.",
+  "SDPDF.CustomFontFailed": "The font at {path} could not be loaded, so the bundled font was used instead. Check the path in the module settings.",
   "SDPDF.Settings.Template.Choice2024": "2024 Official Sheet",
   "SDPDF.Settings.Template.Choice2014": "2014 Official Sheet",
+  "SDPDF.Settings.CustomFont.Name": "Font for non-Latin text",
+  "SDPDF.Settings.CustomFont.Hint": "Only needed for alphabets the bundled PT Sans does not cover, such as Greek, Vietnamese, Chinese, Japanese or Korean. Leave empty unless characters are missing from your exported sheets. Must be a .ttf or .otf file; headings will render in the regular weight.",
   "SDPDF.Export.Title": "Export Character Sheet",
   "SDPDF.Export.HeroTitle": "Character Sheet PDF",
   "SDPDF.Export.HeroSub": "Pick a layout to export a filled sheet for {name}.",
@@ -19,5 +23,6 @@
   "SDPDF.Export.Change": "Change",
   "SDPDF.Export.Download": "Download the official PDF",
   "SDPDF.Export.NotProvided": "This official sheet is copyrighted and cannot be bundled with the module. Download your own copy, upload it to Foundry, then browse to it here.",
-  "SDPDF.Export.MissingOfficial": "That official sheet has not been provided yet. Use the export dialog to download and select it first."
+  "SDPDF.Export.MissingOfficial": "That official sheet has not been provided yet. Use the export dialog to download and select it first.",
+  "SDPDF.Export.TemplateUnavailable": "The PDF you selected could not be loaded from {path}. It may have been moved, renamed or deleted — upload it again and use \"Change\" in the export dialog to re-select it."
 }

@@ -53,6 +53,26 @@ jobs:
             exit 1
           fi
 
+      # Same check for the vendored fontkit, which pdf-lib needs to embed a TrueType font for
+      # sheets containing text the PDF standard fonts cannot render. It is loaded on demand at
+      # runtime rather than from module.json, but it ships in the release archive like any other
+      # dependency, so it gets the same Dependabot pin and the same integrity guarantee.
+      - name: Verify vendored fontkit integrity
+        run: |
+          expected="d8df561b9fba98e24f2e5130e40948809281bbbc55a20c412359f1a0a5eb35a6"
+          actual=$(tr -d '\r' < lib/fontkit.umd.min.js | sha256sum | cut -d' ' -f1)
+          if [ "$actual" != "$expected" ]; then
+            echo "lib/fontkit.umd.min.js does not match @pdf-lib/fontkit $(jq -r '.dependencies["@pdf-lib/fontkit"]' package.json): expected sha256 $expected, got $actual" >&2
+            exit 1
+          fi
+
+      # The bundled fonts are embedded into every non-Latin sheet, so a corrupt or swapped file
+      # would surface as unreadable output rather than a build failure. Pin them too.
+      - name: Verify bundled fonts integrity
+        run: |
+          echo "9cc831490532009bae2b3ce0d39c62adfc889060beb421593bfd9d2396d0f10a  fonts/PTSans-Regular.ttf
+          3128bd5ecf01816e59a23d54c57a7a6b14615b07db53ff277c77376010265b05  fonts/PTSans-Bold.ttf" | sed 's/^ *//' | sha256sum --check --strict
+
       # Syntax-check the ES modules without executing them, so a typo can't ship.
       # lib/ is excluded: it holds the minified pdf-lib vendor bundle.
       - name: Syntax-check scripts
