@@ -158,6 +158,26 @@ a font that covers your language fixes it.
 
 ---
 
+## For module developers
+
+Other modules can drive this one: open the export window for the user, or generate a sheet
+straight to a download or to raw bytes.
+
+```js
+const sdpdf = game.modules.get("sogrom-dnd5e-character-sheet-pdf")?.api;
+
+await sdpdf.promptPdf(actor);                    // Ask the user which layout, then export
+await sdpdf.generatePdf(actor, "2024");          // Export straight away
+const { bytes } = await sdpdf.createPdf(actor, { download: false });   // Just the file
+```
+
+There are hooks to go with it (`sdpdf.ready`, `sdpdf.preExportPdf`, `sdpdf.exportPdf`) for
+retargeting, renaming or intercepting an export. The full reference, with the caveat that an export
+only works once the user has supplied their own copy of the official sheet, is in
+[docs/api.md](docs/api.md).
+
+---
+
 ## Support and feedback
 
 Bug reports and suggestions are welcome. Just log them in [GitHub Issues](https://github.com/IainFielding/dnd-pdf-character-sheet/issues). When reporting a problem, it helps to include the sheet layout you were using (2024 or 2014) and any messages from the

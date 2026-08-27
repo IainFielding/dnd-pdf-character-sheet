@@ -91,17 +91,18 @@ if ( globalThis.Hooks ) {
       default: ""
     });
 
-    const module = game.modules.get(MODULE_ID);
-    module.api = {
-      // Open the layout picker, then generate the chosen sheet.
-      promptPdf: actor => PdfExportDialog.open(actor),
-      // Generate straight to a chosen (or the remembered) layout, skipping the dialog.
-      generatePdf: (actor, template) => generatePdf(actor, template),
-      // Developer tooling, namespaced off the main surface so it reads as intentional rather than
-      // part of the supported API. See {@link generateDebugPdf}.
-      debug: { generateFieldMap: template => generateDebugPdf(template) }
-    };
+    // Publish the public API for other modules. Registered during `init` so a dependent module can
+    // reach it from its own `setup` or `ready`; anything needing it sooner can wait on the
+    // `sdpdf.ready` hook below, which hands over this same object. See {@link API}.
+    game.modules.get(MODULE_ID).api = API;
   });
+
+  /**
+   * Announce the API to modules that would rather not depend on `init` ordering.
+   * @param {typeof API} api  The same object as `game.modules.get(MODULE_ID).api`.
+   * @function sdpdf.ready
+   */
+  Hooks.once("ready", () => Hooks.callAll("sdpdf.ready", API));
 
   /** Add a "PDF Character Sheet" entry to the Actor directory context menu. */
   Hooks.on("getActorContextOptions", (application, options) => {
@@ -175,34 +176,71 @@ let PdfExportDialog;
 if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
   PdfExportDialog = class PdfExportDialog extends foundry.applications.api.ApplicationV2 {
     /**
+     * Resolves with the export result once the user exports, or with `null` if they dismiss the
+     * dialog. Held here so {@link wait} can hand that promise to an API caller.
+     * @type {((result: PdfExportResult|null) => void)|null}
+     */
+    #resolve = null;
+
+    /** Set while an export runs, so {@link _onClose} does not settle the promise with `null`. */
+    #exporting = false;
+
+    /**
      * @param {Actor} actor  Character actor whose sheet will be exported.
      * @param {object} [options]
+     * @param {string} [options.template]  Layout to pre-select instead of the remembered one.
+     * @param {object} [options.export]    Options forwarded to {@link generatePdf} on confirm.
      */
     constructor(actor, options={}) {
       super(options);
       this.actor = actor;
-      // The layout to pre-select: the one remembered from last time if it is currently available,
-      // otherwise the default. Updated as the user browses for or picks a layout.
-      this.selected = game.settings.get(MODULE_ID, "template");
-      if ( !this.#available(this.selected) ) this.selected = DEFAULT_TEMPLATE;
+      // The layout to pre-select: the caller's choice, else the one remembered from last time if it
+      // is available, else the default. Updated as the user browses for or picks a layout.
+      // An unrecognised key — a setting left behind by an older version — is never available, so
+      // it falls back to the default layout too.
+      this.selected = options.template ?? game.settings.get(MODULE_ID, "template");
+      if ( !isTemplateAvailable(this.selected) ) this.selected = DEFAULT_TEMPLATE;
     }
 
-    /** Open the export dialog for an actor. */
-    static open(actor) {
-      if ( !actor ) return;
-      new PdfExportDialog(actor).render(true);
+    /**
+     * Open the export dialog for an actor.
+     * @param {Actor|string} actor  The actor, or its id, UUID or name.
+     * @param {object} [options]    Options as taken by the constructor.
+     * @returns {Promise<PdfExportResult|null>}  The export, or `null` if the actor could not be
+     *                                           resolved or the user dismissed the dialog.
+     */
+    static open(actor, options={}) {
+      const doc = resolveActor(actor);
+      if ( !doc ) return Promise.resolve(null);
+      return new PdfExportDialog(doc, options).wait();
     }
 
     /* -------------------------------------------- */
 
     /**
-     * Whether a layout key can be generated right now, i.e. the user has supplied their own copy of
-     * that official sheet. An unrecognised key (a setting left behind by an older version) is never
-     * available, so the caller falls back to the default layout.
+     * Render the dialog and resolve once the user has exported or dismissed it. Never rejects: a
+     * failed export notifies the user and resolves `null`, matching what they just saw happen.
+     * @returns {Promise<PdfExportResult|null>}
      */
-    #available(key) {
-      const official = OFFICIAL_TEMPLATES[key];
-      return !!official && !!game.settings.get(MODULE_ID, official.setting);
+    async wait() {
+      const result = new Promise(resolve => this.#resolve = resolve);
+      try {
+        await this.render(true);
+      } catch(err) {
+        // A dialog that never opened is the same non-answer to the caller as one that was dismissed.
+        console.error(`${MODULE_ID} | Failed to open the export dialog`, err);
+        this.#settle(null);
+      }
+      return result;
+    }
+
+    /* -------------------------------------------- */
+
+    /** Settle {@link wait}'s promise, at most once. */
+    #settle(result=null) {
+      const resolve = this.#resolve;
+      this.#resolve = null;
+      resolve?.(result);
     }
 
     /* -------------------------------------------- */
@@ -221,7 +259,7 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
         const desc = L(meta.desc);
         const icon = `<span class="sdpdf-card-icon"><i class="fa-solid ${meta.icon}"></i></span>`;
 
-        if ( this.#available(key) ) {
+        if ( isTemplateAvailable(key) ) {
           const checked = (key === this.selected) ? " checked" : "";
           // A supplied sheet shows the file it points at plus a "Change" control, so a wrong pick
           // can be re-pointed here (the Browse button on the locked card is gone once a file is
@@ -339,10 +377,19 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
     static async _onExport() {
       this.#syncSelection();
       const template = this.selected;
-      await game.settings.set(MODULE_ID, "template", template);
       const actor = this.actor;
+      // Close first so the window is out of the way while the sheet builds, but keep the promise
+      // open: a caller waiting on this dialog wants the PDF, not the moment the window vanished.
+      this.#exporting = true;
       await this.close();
-      generatePdf(actor, template);
+      let result = null;
+      try {
+        await game.settings.set(MODULE_ID, "template", template);
+        result = await generatePdf(actor, template, this.options.export ?? {});
+      } finally {
+        // Whatever happened, the caller gets an answer rather than a promise that never settles.
+        this.#settle(result);
+      }
     }
 
     /* -------------------------------------------- */
@@ -350,6 +397,14 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
     /** @this {PdfExportDialog} */
     static _onCancel() {
       this.close();
+    }
+
+    /* -------------------------------------------- */
+
+    /** Closing without exporting resolves `null`; an export settles the promise once it finishes. */
+    _onClose(options) {
+      super._onClose(options);
+      if ( !this.#exporting ) this.#settle(null);
     }
 
     /* -------------------------------------------- */
@@ -375,56 +430,225 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
 /* -------------------------------------------- */
 
 /**
- * Generate a filled character sheet PDF for the given actor and offer it as a download.
- * @param {Actor} actor
- * @param {string} [template]  Layout key ("2024" or "2014"). Defaults to the layout remembered from
- *                             the last export.
+ * The outcome of a successful export.
+ * @typedef {object} PdfExportResult
+ * @property {Actor} actor                 The actor the sheet was built from.
+ * @property {string} template             Layout the sheet was built with ("2024" or "2014").
+ * @property {Uint8Array} bytes            The finished PDF.
+ * @property {string} filename             Suggested filename, always ending in ".pdf".
+ * @property {string[]} droppedCharacters  Characters no available font could render, so they are
+ *                                         missing from the PDF. Empty for almost every sheet.
+ * @property {boolean} downloaded          Whether the file was handed to the browser to save.
  */
-async function generatePdf(actor, template=game.settings.get(MODULE_ID, "template")) {
+
+/**
+ * Resolve whatever a caller passed as "the actor" into an Actor document, so an API consumer can
+ * hand over an id, a UUID or a name rather than having to look the document up first.
+ * @param {Actor|string} target  An Actor (or a Token/TokenDocument), or an actor id, UUID or name.
+ * @returns {Actor|null}         Null if nothing matches.
+ */
+export function resolveActor(target) {
+  if ( target?.documentName === "Actor" ) return target;
+  // A token or its placeable stands in for the actor it represents, including unlinked ones.
+  if ( target?.actor?.documentName === "Actor" ) return target.actor;
+  if ( typeof target !== "string" ) return null;
+  const byId = game.actors?.get(target);
+  if ( byId ) return byId;
+  // Only the synchronous UUID lookup is used, so a caller holding a UUID for an unloaded
+  // compendium entry should await `fromUuid` themselves and pass the document.
+  if ( target.includes(".") ) {
+    let doc = null;
+    try { doc = fromUuidSync(target); } catch(err) { /* Not a resolvable UUID; fall through to name */ }
+    if ( doc?.documentName === "Actor" ) return doc;
+    if ( doc?.actor?.documentName === "Actor" ) return doc.actor;
+  }
+  return game.actors?.getName(target) ?? null;
+}
+
+/**
+ * Pick the layout to export with: the caller's, if they named one this module knows, otherwise the
+ * one remembered from the last export.
+ * @param {string} [template]
+ * @returns {string}
+ */
+function resolveTemplateKey(template) {
+  if ( template && !(template in OFFICIAL_TEMPLATES) ) {
+    console.warn(`${MODULE_ID} | Unknown template "${template}", using the remembered layout`);
+    template = null;
+  }
+  return template || game.settings.get(MODULE_ID, "template");
+}
+
+/**
+ * Whether a layout can be exported right now, i.e. the user has supplied their own copy of that
+ * copyrighted official sheet. Worth checking before offering an export in another module's UI.
+ * @param {string} key  Layout key ("2024" or "2014").
+ * @returns {boolean}
+ */
+export function isTemplateAvailable(key) {
+  const official = OFFICIAL_TEMPLATES[key];
+  return !!official && !!game.settings.get(MODULE_ID, official.setting);
+}
+
+/**
+ * The layouts this module can export, and whether each is usable yet. Ordered as the export dialog
+ * lists them — taken from {@link EXPORT_GROUPS} rather than from {@link OFFICIAL_TEMPLATES}, whose
+ * keys look like integers and so come back from the object in numeric order, not the intended one.
+ * @returns {Array<{key: string, label: string, url: string, path: string, available: boolean}>}
+ *          `label` is localized, `url` is where the official sheet is downloaded from, and `path`
+ *          is the user's own copy ("" until they supply one, which is when `available` turns true).
+ */
+export function getTemplates() {
+  return EXPORT_GROUPS.flatMap(group => group.keys).map(key => {
+    const official = OFFICIAL_TEMPLATES[key];
+    const path = game.settings.get(MODULE_ID, official.setting);
+    return { key, label: game.i18n.localize(official.label), url: official.url, path, available: !!path };
+  });
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Build a filled character sheet PDF and hand back its bytes, touching neither the UI nor the
+ * user's downloads. This is the entry point for callers that want the file itself — to upload it,
+ * attach it to a chat message, or feed it into their own workflow. Failure is reported by throwing,
+ * unlike {@link generatePdf}, which is the user-facing path and reports failure with a notification.
+ * @param {Actor|string} target        The actor, or its id, UUID or name.
+ * @param {object} [options]
+ * @param {string} [options.template]  Layout key ("2024" or "2014"). Defaults to the layout
+ *                                     remembered from the last export.
+ * @param {string} [options.filename]  Filename to suggest instead of "<name> - Character Sheet.pdf".
+ * @returns {Promise<PdfExportResult>}   Always with `downloaded: false`; nothing is saved.
+ * @throws {Error}                       If no actor matches `target`.
+ * @throws {TemplateNotConfiguredError}  If the user has not supplied that official sheet yet.
+ * @throws {TemplateUnavailableError}    If the sheet they supplied could not be loaded.
+ */
+export async function createPdf(target, options={}) {
+  const actor = resolveActor(target);
+  if ( !actor ) throw new Error(`${MODULE_ID} | Cannot export a PDF: no actor matches "${target}"`);
+  const template = resolveTemplateKey(options.template);
+  const { path, Filler } = templateConfig(template);
+  if ( !path ) throw new TemplateNotConfiguredError(template);
+
+  let filler = await Filler.create(path);
+  await filler.fillActor(actor);
+
+  // The standard fonts cover Latin-1 only, so a Cyrillic name, a Polish "ł" or a Turkish "ş"
+  // just lost characters. Rather than guess up front which sheets need more — the actor's own
+  // text is only half of it, since a non-English Foundry contributes localized ability names,
+  // trait labels and casting times too — fill once and let the result say. If anything was
+  // dropped, redo the whole sheet with an embedded Unicode font, which nothing has to be
+  // stripped for. Filling twice costs a second parse of the template, and only for the users
+  // who would otherwise get an incomplete sheet.
+  if ( filler.droppedCharacters.size ) {
+    const unicodeFiller = await Filler.create(path, undefined, { unicode: true });
+    if ( unicodeFiller.unicodeFont ) {
+      await unicodeFiller.fillActor(actor);
+      filler = unicodeFiller;
+    }
+  }
+
+  let filename = options.filename || `${actor.name} - Character Sheet.pdf`;
+  if ( !filename.toLowerCase().endsWith(".pdf") ) filename += ".pdf";
+  return {
+    actor, template, filename,
+    bytes: await filler.save(),
+    // Anything still dropped is outside even the Unicode font's coverage (CJK, emoji), or no font
+    // could be loaded at all. An array rather than the filler's Set, so the result stays a plain
+    // data object callers can hold on to.
+    droppedCharacters: [...filler.droppedCharacters],
+    downloaded: false
+  };
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Generate a filled character sheet PDF for the given actor and offer it as a download. This is
+ * what the sidebar entry, the sheet header control and the export dialog all call, and what another
+ * module should call for this module's normal behaviour: progress and error notifications, and the
+ * finished sheet saved to the user's device.
+ *
+ * Failure is reported to the user as a notification and to the caller as `null`; use
+ * {@link createPdf} instead to handle errors yourself.
+ * @param {Actor|string} target           The actor, or its id, UUID or name.
+ * @param {string|object} [template]      Layout key ("2024" or "2014"), or the options object.
+ * @param {object} [options]
+ * @param {string} [options.filename]     Filename to suggest instead of "<name> - Character Sheet.pdf".
+ * @param {boolean} [options.download=true]  Set false to get the bytes back without saving a file.
+ * @param {boolean} [options.notify=true]    Set false to suppress this module's notifications.
+ * @returns {Promise<PdfExportResult|null>}  Null if the export failed or a hook cancelled it.
+ * @fires sdpdf.preExportPdf
+ * @fires sdpdf.exportPdf
+ */
+async function generatePdf(target, template, options={}) {
+  // `generatePdf(actor, { template: "2014" })` reads better than a positional key alongside an
+  // options object, so the options are accepted in either position.
+  if ( template && (typeof template === "object") ) [template, options] = [template.template, template];
+  const notify = options.notify !== false;
   try {
-    const { path, Filler } = templateConfig(template);
-    if ( !path ) {
-      ui.notifications.error(game.i18n.localize("SDPDF.Export.MissingOfficial"));
-      return;
-    }
-    ui.notifications.info(game.i18n.format("SDPDF.Generating", { name: actor.name }));
-    let filler = await Filler.create(path);
-    await filler.fillActor(actor);
+    const actor = resolveActor(target);
+    if ( !actor ) throw new Error(`${MODULE_ID} | Cannot export a PDF: no actor matches "${target}"`);
 
-    // The standard fonts cover Latin-1 only, so a Cyrillic name, a Polish "ł" or a Turkish "ş"
-    // just lost characters. Rather than guess up front which sheets need more — the actor's own
-    // text is only half of it, since a non-English Foundry contributes localized ability names,
-    // trait labels and casting times too — fill once and let the result say. If anything was
-    // dropped, redo the whole sheet with an embedded Unicode font, which nothing has to be
-    // stripped for. Filling twice costs a second parse of the template, and only for the users
-    // who would otherwise get an incomplete sheet.
-    if ( filler.droppedCharacters.size ) {
-      const unicodeFiller = await Filler.create(path, undefined, { unicode: true });
-      if ( unicodeFiller.unicodeFont ) {
-        await unicodeFiller.fillActor(actor);
-        filler = unicodeFiller;
-      }
+    /**
+     * A module may retarget the export or call it off entirely — swapping the layout, renaming the
+     * file, or taking the bytes itself (`download: false`) to upload them somewhere.
+     * @param {Actor} actor     The actor about to be exported.
+     * @param {object} context  Mutable: `template`, `filename` and `download`.
+     * @returns {boolean}       Explicitly false to cancel the export.
+     * @function sdpdf.preExportPdf
+     */
+    const context = {
+      template: resolveTemplateKey(template),
+      filename: options.filename || `${actor.name} - Character Sheet.pdf`,
+      download: options.download !== false
+    };
+    if ( Hooks.call("sdpdf.preExportPdf", actor, context) === false ) return null;
+
+    // Checked before the "generating" notification so an unconfigured layout says so straight away
+    // rather than appearing to start work first.
+    if ( !isTemplateAvailable(context.template) ) throw new TemplateNotConfiguredError(context.template);
+
+    if ( notify ) ui.notifications.info(game.i18n.format("SDPDF.Generating", { name: actor.name }));
+    const result = await createPdf(actor, { template: context.template, filename: context.filename });
+
+    if ( context.download ) {
+      downloadBytes(result.bytes, result.filename);
+      result.downloaded = true;
+      if ( notify ) ui.notifications.info(game.i18n.format("SDPDF.Done", { name: actor.name }));
     }
 
-    const bytes = await filler.save();
-    downloadBytes(bytes, `${actor.name} - Character Sheet.pdf`);
-    ui.notifications.info(game.i18n.format("SDPDF.Done", { name: actor.name }));
-    // Anything still missing is outside even the Unicode font's coverage (CJK, emoji), or no font
-    // could be loaded at all. Either way the sheet generated, so say what is not on it rather than
+    // Anything dropped is outside even the Unicode font's coverage (CJK, emoji), or no font could
+    // be loaded at all. Either way the sheet generated, so say what is not on it rather than
     // leaving the user to wonder why a box came out blank.
-    if ( filler.droppedCharacters.size ) {
-      const characters = [...filler.droppedCharacters].join(" ");
+    if ( result.droppedCharacters.length ) {
+      const characters = result.droppedCharacters.join(" ");
       console.warn(`${MODULE_ID} | Dropped characters no available font can render: ${characters}`);
-      ui.notifications.warn(game.i18n.format("SDPDF.UnsupportedCharacters", { characters }));
+      if ( notify ) ui.notifications.warn(game.i18n.format("SDPDF.UnsupportedCharacters", { characters }));
     }
+
+    /**
+     * A sheet finished generating. The bytes are on the result whether or not they were downloaded.
+     * @param {Actor} actor             The actor that was exported.
+     * @param {PdfExportResult} result  The finished PDF and what it was built from.
+     * @function sdpdf.exportPdf
+     */
+    Hooks.callAll("sdpdf.exportPdf", actor, result);
+    return result;
   } catch(err) {
     console.error(`${MODULE_ID} | Failed to generate PDF`, err);
-    // A missing template file is a user-fixable problem, so name the file and point them back at
-    // the picker rather than at the console.
-    if ( err instanceof TemplateUnavailableError ) {
-      ui.notifications.error(game.i18n.format("SDPDF.Export.TemplateUnavailable", { path: err.path }), { permanent: true });
+    // A layout that was never supplied, or whose file has since moved, is a user-fixable problem:
+    // point them back at the picker rather than at the console.
+    if ( notify ) {
+      if ( err instanceof TemplateNotConfiguredError ) {
+        ui.notifications.error(game.i18n.localize("SDPDF.Export.MissingOfficial"));
+      }
+      else if ( err instanceof TemplateUnavailableError ) {
+        ui.notifications.error(game.i18n.format("SDPDF.Export.TemplateUnavailable", { path: err.path }), { permanent: true });
+      }
+      else ui.notifications.error(game.i18n.localize("SDPDF.Error"));
     }
-    else ui.notifications.error(game.i18n.localize("SDPDF.Error"));
+    return null;
   }
 }
 
@@ -593,6 +817,20 @@ async function embedUnicodeFont(doc) {
   } catch(err) {
     console.warn(`${MODULE_ID} | Could not embed a Unicode font; falling back to plain text`, err);
     return null;
+  }
+}
+
+/**
+ * The user has not supplied their own copy of the requested official sheet yet, so there is no
+ * template to fill. Thrown rather than notified so an API caller can tell "this user cannot export
+ * that layout yet" apart from a real failure, and offer their own prompt.
+ */
+export class TemplateNotConfiguredError extends Error {
+  constructor(template) {
+    super(`No PDF has been supplied for the "${template}" character sheet layout`);
+    this.name = "TemplateNotConfiguredError";
+    /** The layout key that has no file behind it, e.g. "2024". */
+    this.template = template;
   }
 }
 
@@ -1863,3 +2101,39 @@ export function stripHtml(html) {
   el.innerHTML = html.replace(/<\/p>|<br\s*\/?>/gi, "$&\n");
   return el.textContent.replace(/\n{3,}/g, "\n\n").trim();
 }
+
+/* -------------------------------------------- */
+/*  Public API                                  */
+/* -------------------------------------------- */
+
+/**
+ * This module's public API, published during `init` at
+ * `game.modules.get("sogrom-dnd5e-character-sheet-pdf").api` and handed to the `sdpdf.ready` hook.
+ *
+ * Everything on it is safe for other modules to call. In brief:
+ * - {@link promptPdf} shows the layout picker and exports whatever the user chooses.
+ * - {@link generatePdf} exports straight away, with this module's usual notifications.
+ * - {@link createPdf} returns the bytes and leaves the UI alone.
+ * - {@link getTemplates} / {@link isTemplateAvailable} report whether an export is possible yet,
+ *   since each official sheet is copyrighted and only works once the user supplies their own copy.
+ *
+ * @see docs/api.md for worked examples and the hooks that go with these.
+ */
+export const API = {
+  MODULE_ID,
+  DEFAULT_TEMPLATE,
+  /** Open the layout picker, then generate the chosen sheet. Resolves null if the user cancels. */
+  promptPdf: (actor, options) => PdfExportDialog.open(actor, options),
+  generatePdf,
+  createPdf,
+  /** Save raw PDF bytes to the user's device, for callers that built or altered their own. */
+  downloadPdf: (bytes, filename) => downloadBytes(bytes, filename),
+  getTemplates,
+  isTemplateAvailable,
+  resolveActor,
+  /** Error types thrown by {@link createPdf}, exposed so callers can tell them apart. */
+  errors: { TemplateNotConfiguredError, TemplateUnavailableError },
+  // Developer tooling, namespaced off the main surface so it reads as intentional rather than
+  // part of the supported API. See {@link generateDebugPdf}.
+  debug: { generateFieldMap: template => generateDebugPdf(template) }
+};
