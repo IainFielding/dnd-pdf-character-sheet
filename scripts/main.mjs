@@ -851,7 +851,7 @@ export class TemplateUnavailableError extends Error {
 
 /**
  * Base filler plus the 2014-layout `fillActor`. The low-level helpers (`create`, `text`, `check`,
- * `drawFeatureBlocks`, …) are template-agnostic; {@link Sheet2024Filler} extends this class and
+ * `fillFeatureBlocks`, …) are template-agnostic; {@link Sheet2024Filler} extends this class and
  * overrides `fillActor` for the very different 2024 layout.
  */
 export class SheetFiller {
@@ -1246,7 +1246,7 @@ export class SheetFiller {
   #fillFeatures(actor) {
     const groups = groupFeats(actor);
 
-    // Bold name + plain description blocks, flowing from the page 1 box into the page 2 box
+    // Section headings + feature names, flowing from the page 1 box into the page 2 box
     const blocks = [];
     const add = (heading, items) => {
       if ( !items.length ) return;
@@ -1258,33 +1258,39 @@ export class SheetFiller {
     add("Feats", groups.feat);
     add("Background", groups.background);
     add("Other", groups.other);
-    const unrendered = this.drawFeatureBlocks(blocks);
+    const unrendered = this.fillFeatureBlocks(blocks);
     if ( unrendered ) console.warn(`${MODULE_ID} | ${unrendered} feature text sections did not fit on the sheet.`);
   }
 
   /* -------------------------------------------- */
 
   /**
-   * Draw feature blocks (bold title + regular description) directly onto the page, inside the
-   * rectangles of the given text fields. Form fields cannot mix fonts, hence direct drawing.
-   * Content flows from one box to the next when a box is full.
+   * Fill feature blocks (section headings + feature names) into the given text fields, which
+   * stay editable. Content is wrapped up front so it can flow from one box to the next when a
+   * box is full; a blank line separates sections.
    * @param {Array<{heading: string}|{title: string, text: string}>} blocks
    * @param {string[]} [fieldNames]  Boxes to fill, in order.
    * @returns {number}               Number of text sections that did not fit.
    */
-  drawFeatureBlocks(blocks, fieldNames=[FIELDS.featuresTraits, FIELDS.additionalFeatures]) {
-    const boxes = fieldNames.map(name => this.#fieldBox(name)).filter(_ => _);
+  fillFeatureBlocks(blocks, fieldNames=[FIELDS.featuresTraits, FIELDS.additionalFeatures]) {
+    const boxes = fieldNames.map(name => ({ name, rect: this.fieldRect(name) })).filter(box => box.rect);
     if ( !boxes.length ) return blocks.length;
+    // pdf-lib insets a field's text by its border width + 1 and spaces lines at 1.2x the font
+    // height; matching that here makes the line count fill the box without being clipped.
     const PAD = 4;
+    const V_PAD = 2;
+    const SIZE = 7;
+    const font = this.fonts.regular;
+    const LINE_HEIGHT = font.heightAtSize(SIZE) * 1.2;
 
-    // Flatten blocks into styled text segments
+    // Flatten blocks into text segments
     const segments = [];
     for ( const block of blocks ) {
       // Sanitizing here rather than in wrapText keeps the measuring safe and feeds droppedCharacters.
-      if ( block.heading ) segments.push({ text: this.sanitize(block.heading), bold: true, size: 8, spaceBefore: 6 });
+      if ( block.heading ) segments.push({ text: this.sanitize(block.heading), gapBefore: true });
       else {
-        segments.push({ text: this.sanitize(block.title), bold: false, size: 7, spaceBefore: 4 });
-        if ( block.text ) segments.push({ text: this.sanitize(block.text), bold: false, size: 7, spaceBefore: 1 });
+        segments.push({ text: this.sanitize(block.title) });
+        if ( block.text ) segments.push({ text: this.sanitize(block.text) });
       }
     }
 
@@ -1292,69 +1298,28 @@ export class SheetFiller {
     let carry = null;  // Remainder of a segment that did not fit in the previous box
     for ( const box of boxes ) {
       const width = box.rect.width - (2 * PAD);
-      const bottom = box.rect.y + PAD;
-      let y = box.rect.y + box.rect.height - PAD;
-      let atTop = true;
+      const capacity = Math.floor((box.rect.height - (2 * V_PAD)) / LINE_HEIGHT);
+      const out = [];
       while ( index < segments.length ) {
         const segment = segments[index];
-        const font = segment.bold ? this.fonts.bold : this.fonts.regular;
-        const lineHeight = segment.size * 1.25;
-        if ( (carry === null) && !atTop ) y -= segment.spaceBefore;
-        const lines = wrapText(carry ?? segment.text, font, segment.size, width);
-        let drawn = 0;
-        for ( const line of lines ) {
-          if ( (y - lineHeight) < bottom ) break;
-          y -= lineHeight;
-          if ( line ) box.page.drawText(line, { x: box.rect.x + PAD, y, size: segment.size, font });
-          drawn++;
-          atTop = false;
-        }
-        if ( drawn < lines.length ) {
-          carry = lines.slice(drawn).join(" ");
+        if ( (carry === null) && segment.gapBefore && out.length ) out.push("");
+        const lines = wrapText(carry ?? segment.text, font, SIZE, width);
+        const room = Math.max(capacity - out.length, 0);
+        out.push(...lines.slice(0, room));
+        if ( room < lines.length ) {
+          carry = lines.slice(room).join(" ");
           break;  // This box is full; continue in the next one
         }
         carry = null;
         index++;
       }
+      // Trailing blank line from a section gap that landed at the very bottom of the box
+      while ( out.length && !out.at(-1) ) out.pop();
+      this.resizeField(box.name, { multiline: true });
+      this.text(box.name, out.join("\n"), { fontSize: SIZE });
       if ( index >= segments.length ) break;
     }
     return segments.length - index;
-  }
-
-  /* -------------------------------------------- */
-
-  /**
-   * Resolve a form field to its page and widget rectangle for direct drawing, and make the
-   * field read-only so users cannot type over the drawn text.
-   * @param {string} name
-   * @returns {{page: import("pdf-lib").PDFPage, rect: {x: number, y: number, width: number, height: number}}|null}
-   */
-  #fieldBox(name) {
-    const field = this.#index.get(SheetFiller.normalize(name));
-    if ( !field ) {
-      console.warn(`${MODULE_ID} | Unknown field "${name}"`);
-      return null;
-    }
-    try {
-      const widget = field.acroField.getWidgets()[0];
-      const rect = widget.getRectangle();
-      const pageRef = widget.P();
-      const page = this.doc.getPages().find(p => p.ref === pageRef);
-      if ( !page ) return null;
-      // The feature text is drawn straight onto the page; hide the field's widget (annotation
-      // flag 2 = Hidden) so its empty appearance cannot paint over that text in viewers that
-      // render form fields opaquely. enableReadOnly keeps the (now hidden) field non-interactive.
-      try {
-        widget.dict.set(PDFLib.PDFName.of("F"), PDFLib.PDFNumber.of(2));
-      } catch(flagErr) {
-        console.warn(`${MODULE_ID} | Could not hide widget for "${name}"`, flagErr);
-      }
-      field.enableReadOnly();
-      return { page, rect };
-    } catch(err) {
-      console.warn(`${MODULE_ID} | Could not resolve drawing area for "${name}"`, err);
-      return null;
-    }
   }
 
   /* -------------------------------------------- */
@@ -1649,9 +1614,9 @@ export class Sheet2024Filler extends SheetFiller {
     const classBlocks = toBlocks(groups.class);
     if ( groups.background.length ) classBlocks.push({ heading: "Background" }, ...toBlocks(groups.background));
     if ( groups.other.length ) classBlocks.push({ heading: "Other" }, ...toBlocks(groups.other));
-    const unrendered = this.drawFeatureBlocks(classBlocks, F24.classFeatures)
-      + this.drawFeatureBlocks(toBlocks(groups.race), [F24.speciesTraits])
-      + this.drawFeatureBlocks(toBlocks(groups.feat), [F24.feats]);
+    const unrendered = this.fillFeatureBlocks(classBlocks, F24.classFeatures)
+      + this.fillFeatureBlocks(toBlocks(groups.race), [F24.speciesTraits])
+      + this.fillFeatureBlocks(toBlocks(groups.feat), [F24.feats]);
     if ( unrendered ) console.warn(`${MODULE_ID} | ${unrendered} feature text sections did not fit on the sheet.`);
   }
 
@@ -1988,11 +1953,11 @@ export function castingTimeAbbr(spell) {
 }
 
 /**
- * Greedy word-wrap for direct page drawing.
+ * Greedy word-wrap, used to split feature text across fields before filling them.
  *
  * The text must already have been through {@link SheetFiller#sanitize}: measuring a character the
  * font cannot encode throws, so passing raw actor text here would fail on the same character that
- * used to take down the whole document. {@link SheetFiller#drawFeatureBlocks} sanitizes for us,
+ * used to take down the whole document. {@link SheetFiller#fillFeatureBlocks} sanitizes for us,
  * which is also what lets this work with an embedded Unicode font, where nothing is stripped.
  * @param {string} text       Text to wrap; embedded newlines are honoured.
  * @param {PDFFont} font      Embedded pdf-lib font used to measure widths.
