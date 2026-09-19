@@ -55,7 +55,7 @@ We load a **pre-built, minified copy** rather than an npm import:
 
 `lib/fontkit.umd.min.js` is vendored the same way but is **deliberately absent from
 `module.json`**. `pdf-lib` needs it only to parse a TrueType font, which only happens on sheets
-containing text the PDF standard fonts cannot render (§6.6). At ~740 KB it is not worth charging
+containing text the PDF standard fonts cannot render (§6.5). At ~740 KB it is not worth charging
 every user for, so `loadFontkit` injects a `<script>` tag the first time a sheet needs one and
 caches the promise for the session. Like `pdf-lib`, it registers a global — **`fontkit`**.
 
@@ -121,15 +121,15 @@ const rect   = widget.getRectangle();            // { x, y, width, height } in P
 const pageRef = widget.P();                       // which page the widget lives on
 ```
 
-We use this to find out **exactly where a field sits on the page** so we can draw our own
-text there, resize it, or hide it. See §5 and §6.
+We use this to find out **exactly where a field sits on the page** so we can measure how much
+text fits in it, resize it, or place a new field at the same spot. See §5 and §6.
 
 ### 3.5 The coordinate system (this trips everyone up)
 
 PDF coordinates are measured in **points** (1 point = 1/72 inch). A US-Letter page is
 `612 × 792` points. Crucially, **the origin `(0,0)` is the bottom-left corner**, and `y`
-increases *upward*, the opposite of screen/HTML coordinates. So when we draw text down a
-box we *decrease* `y` line by line (see `drawFeatureBlocks`, `y -= lineHeight`).
+increases *upward*, the opposite of screen/HTML coordinates. A widget rectangle's `y` is
+therefore its **bottom** edge, not its top.
 
 ---
 
@@ -144,7 +144,7 @@ SheetFiller            ← base: 2014 official sheet + all shared low-level help
 ```
 
 - **`SheetFiller`** holds the template-agnostic toolbox: `create`, `save`, `text`, `check`,
-  `resizeField`, `drawFeatureBlocks`, `addTextField`, `embedPortrait`, etc. Its own
+  `resizeField`, `fillFeatureBlocks`, `addTextField`, `embedPortrait`, etc. Its own
   `fillActor` fills the **2014** layout.
 - **`Sheet2024Filler`** overrides `fillActor` for the 2024 sheet and adds the
   spell-overflow-page logic.
@@ -180,7 +180,7 @@ downloadBytes(bytes, `${actor.name} - Character Sheet.pdf`);  // 4. download
    rather than the generic "see the console" error.
 2. `PDFDocument.load(pdfBytes)` → `filler.doc`.
 3. `doc.getForm()` → `filler.form`.
-4. Embed two standard fonts (Helvetica + Helvetica-Bold) for direct drawing (§5).
+4. Embed two standard fonts (Helvetica + Helvetica-Bold), used to measure text widths (§5.2).
 5. Build a **normalized field index** (`#index`); see §4.3.
 
 ### 4.3 Field maps and name normalization
@@ -204,11 +204,11 @@ the maps can use clean names and still match a field named `"Race "`.
 
 ---
 
-## 5. Two ways to put content on the page
+## 5. Putting content on the page
 
-This is the single most important idea in the module. There are **two fundamentally
-different ways** we get content onto the PDF, and knowing which is being used explains most
-of the code.
+Everything the module writes goes into a **form field**, so every value stays editable in a PDF
+reader. Most fields take a single value (§5.1); the feature boxes need a little layout work first
+(§5.2).
 
 ### 5.1 Filling a form field (the normal path)
 
@@ -232,36 +232,29 @@ this.check("Check Box 11");    // check() helper → field.check()
 field.acroField.setDefaultAppearance(`/Helv ${fontSize} Tf 0 g`);
 ```
 
-### 5.2 Drawing directly onto the page (the special path)
+### 5.2 Flowing feature lists across several fields
 
-Sometimes a form field is not enough, and we paint text straight onto the page with
-`page.drawText(...)`. This content is **baked into the page**, not editable afterwards.
+The **Features & Traits** blocks (`fillFeatureBlocks`) list section headings and feature names
+that can run longer than one box. The 2014 sheet has a Features box on page 1 and an
+"Additional Features" box on page 2, and the 2024 sheet splits Class Features across two columns,
+so content that fills one field must continue in the next. A form field cannot tell us where its
+own text overflowed, so we wrap the text ourselves before filling:
 
-We do this for the **Features & Traits** blocks (`drawFeatureBlocks`,
-[main.mjs:761](scripts/main.mjs#L761)) for one reason: **a single form field can only use
-one font**, but we want a **bold feature name followed by regular description text** in the
-same box. Mixed fonts inside one field are impossible, so we draw the text ourselves using
-the two fonts we embedded in `create`.
+- **Measure the box.** `fieldRect(name)` gives the widget rectangle (§3.4); dividing its height by
+  the line height pdf-lib itself lays multiline fields out with (`font.heightAtSize(size) * 1.2`)
+  gives how many lines the field holds. The embedded Unicode font is taller, so it holds fewer.
+- **Word-wrap manually.** `wrapText(text, font, size, maxWidth)` is a greedy word-wrapper that
+  measures each candidate line with `font.widthOfTextAtSize(...)`. It even hard-splits single
+  words longer than a line.
+- **Flow across boxes.** Lines are taken until the box is full; the `carry` variable holds the
+  leftover of a segment that didn't fit so the next box can resume it.
+- **Fill.** Each box is made multiline and receives its lines joined with `
+` at a fixed font
+  size, via the normal `text()` helper.
 
-`drawFeatureBlocks` is worth reading closely because it demonstrates the manual-layout
-techniques:
-
-- **Find the box.** `#fieldBox(name)` ([main.mjs:817](scripts/main.mjs#L817)) resolves a
-  field to `{ page, rect }` using the widget rectangle (§3.4), then **hides the field**
-  (see §6.4) so the empty box art can't paint over our drawn text.
-- **Flow across multiple boxes.** The 2014 sheet has a Features box on page 1 and an
-  "Additional Features" box on page 2; content that fills the first continues in the second.
-  The `carry` variable holds the leftover of a segment that didn't fit so the next box can
-  resume it.
-- **Word-wrap manually.** `wrapText(text, font, size, maxWidth)`
-  ([main.mjs:1483](scripts/main.mjs#L1483)) is a greedy word-wrapper that measures each
-  candidate line with `font.widthOfTextAtSize(...)`. It even hard-splits single words longer
-  than a line. There is no automatic wrapping when you `drawText`, so we must do it ourselves.
-- **Track `y` downward.** Remember the origin is bottom-left (§3.5), so each drawn line
-  subtracts `lineHeight` from `y`, and we stop when `y` would drop below the box bottom.
-
-The function returns the number of sections that **didn't fit**; the caller logs a console
-warning so nothing silently disappears without a trace.
+A form field can only use one font, so headings are not bold; a blank line separates sections
+instead. The function returns the number of sections that **didn't fit**; the caller logs a
+console warning so nothing silently disappears without a trace.
 
 ---
 
@@ -280,8 +273,8 @@ filler.fonts = {
 ```
 
 The 14 "standard" PDF fonts (Helvetica, Times, Courier, …) need no font file. We embed them
-once so `drawText` and `widthOfTextAtSize` can use them. **Caveat:** standard fonts are
-**WinAnsi-encoded** and cannot render arbitrary Unicode, hence §6.6.
+once so `widthOfTextAtSize` can measure text for wrapping (§5.2). **Caveat:** standard fonts are
+**WinAnsi-encoded** and cannot render arbitrary Unicode, hence §6.5.
 
 ### 6.2 Embedding the portrait image
 
@@ -329,35 +322,19 @@ Key points:
 - The page number in `prefix` guarantees uniqueness across several overflow pages.
 - Every row gets a field, even blank ones, so the whole table stays fillable by hand.
 
-### 6.4 Hiding a field's widget
-
-When we draw feature text directly onto the page (§5.2), the empty form field would still be
-there and, in some viewers, its opaque appearance paints a white rectangle over our text. So
-in `#fieldBox` we set the widget's **annotation flags** to `2` (the "Hidden" bit) at the raw
-dictionary level, and mark the field read-only:
-
-```js
-widget.dict.set(PDFLib.PDFName.of("F"), PDFLib.PDFNumber.of(2)); // F = flags, 2 = Hidden
-field.enableReadOnly();
-```
-
-`PDFName` and `PDFNumber` are low-level `pdf-lib` object types used when you manipulate the
-raw PDF dictionary directly. You only reach for them when the high-level API has no method
-for what you need; here, setting a raw annotation flag.
-
-### 6.5 Resizing and creating fields
+### 6.4 Resizing and creating fields
 
 - `resizeField(name, { x, y, width, height, multiline })` moves/grows an existing field's widget
   rectangle and optionally turns on multiline. Used where a template ships a single-line field
-  inside a box printed for two lines — the 2024 Tools field is the one live case, grown in
-  `Sheet2024Filler`'s `#fillProficiencies`.
+  inside a box printed for two lines — the 2024 Tools field, grown in `Sheet2024Filler`'s
+  `#fillProficiencies`. `fillFeatureBlocks` also uses it to make the feature boxes multiline.
 - `addTextField(page, name, rect, value, opts)`
   ([main.mjs:882](scripts/main.mjs#L882)) and `addCheckBox`
   ([main.mjs:908](scripts/main.mjs#L908)) create **brand-new** fields (used on overflow
   pages). Note the transparent styling (`borderColor`/`backgroundColor` left `undefined`)
   so the printed template art shows through instead of a white box.
 
-### 6.6 Text encoding: sanitization, and the Unicode fallback
+### 6.5 Text encoding: sanitization, and the Unicode fallback
 
 The PDF standard fonts are **WinAnsi**-encoded, which covers Latin-1 and little else. The trap is
 *when* `pdf-lib` complains: `field.setText("Борис")` succeeds silently, and the encoder only runs
@@ -404,7 +381,7 @@ Checkboxes are unaffected (`pdf-lib` draws them with ZapfDingbats), and explicit
 values survive step 2; only the font name is swapped. Note that `text()`'s fallback for fields with
 no `/DA` entry must name the font in use, not a hardcoded `/Helv`.
 
-### 6.7 HTML → plain text
+### 6.6 HTML → plain text
 
 Foundry stores biographies, ideals, etc. as **rich-text HTML**. Form fields hold plain text
 only, so `stripHtml` ([main.mjs:1562](scripts/main.mjs#L1562)) parses the HTML in a throwaway
@@ -455,8 +432,6 @@ are debugging must already be provided.
   in the relevant field map (remember lookups are whitespace/case-insensitive).
 - **Text throws or renders as `□`**: a non-WinAnsi character reached a font. Route it through
   `sanitizeWinAnsi`.
-- **Drawn text is invisible / covered by a white box**: the field widget wasn't hidden;
-  ensure the box came from `#fieldBox` (which hides it) rather than `fieldRect`.
 - **"field already exists" on overflow pages**: a duplicate field name. Every created field
   must be unique; keep the `Overflow <pageCount>` prefix.
 - **Coordinates look upside-down**: remember `(0,0)` is bottom-left and `y` grows upward.

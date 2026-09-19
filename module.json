@@ -38,7 +38,7 @@
         "type": "system",
         "compatibility": {
           "minimum": "5.3.3",
-          "verified": "6.0.0",
+          "verified": "6.0.3",
           "maximum" : "6.99.99"
         }
       }
