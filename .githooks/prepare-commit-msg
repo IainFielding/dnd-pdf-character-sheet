@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# .githooks/prepare-commit-msg — adds the DCO sign-off trailer if it isn't already there.
+#
+# Enable with: git config core.hooksPath .githooks
+#
+# This exists because `git config format.signOff true` — the obvious-looking setting — does
+# *not* affect `git commit`.
+# It is read only by `git format-patch` and `git send-email`. Git has no `commit.signOff`
+# config at all, so without a hook the `-s` flag has to be typed every single time, and a
+# commit made from an editor's source-control panel can never carry one.
+#
+# The trailer is built from the *author* ident, because that is what .github/workflows/dco.yml
+# compares against: a sign-off naming the committer would still fail CI on a commit authored
+# by somebody else.
+
+MSG_FILE="$1"
+MSG_SOURCE="$2"
+
+# Merge commits are exempt — dco.yml skips them (`git rev-list --no-merges`), and a merge
+# GitHub's "Update branch" button created is not something a contributor can sign off.
+[ "$MSG_SOURCE" = "merge" ] && exit 0
+
+# "Name <email>", with the trailing epoch-and-offset that git var appends cut off.
+IDENT=$(git var GIT_AUTHOR_IDENT | sed 's/^\(.*>\).*$/\1/')
+
+# addIfDifferent, not doNothing: a message that already carries somebody else's sign-off
+# (a cherry-pick, a patch applied on their behalf) still needs ours added below theirs,
+# while an identical trailer anywhere in the message suppresses a duplicate — which is
+# exactly how `git commit -s` behaves.
+git interpret-trailers --in-place --if-exists addIfDifferent \
+  --trailer "Signed-off-by: $IDENT" "$MSG_FILE"

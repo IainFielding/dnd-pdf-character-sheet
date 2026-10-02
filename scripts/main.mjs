@@ -690,18 +690,15 @@ function downloadBytes(bytes, filename) {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
-  a.rel = "noopener";
-  a.style.display = "none";
-  document.body.appendChild(a);
+  // Leave the anchor detached, as foundry.utils.saveDataToFile does. Attached to the page, the
+  // click bubbles to listeners that cancel it and open the link instead; in the desktop app that
+  // hands the blob: URL to the OS, which has nothing to open it with.
   // Dispatch a full MouseEvent rather than a.click() for the widest browser support.
   a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
-  // Keep the anchor and object URL alive well past the click. Removing them synchronously
-  // cancels the download, so the browser instead navigates to the blob and renders the PDF
-  // inline with no way to save it — the original "opens on screen but can't save" symptom.
-  setTimeout(() => {
-    a.remove();
-    URL.revokeObjectURL(url);
-  }, 40_000);
+  // Keep the object URL alive well past the click. Revoking it straight away cancels the
+  // download, so the browser instead navigates to the blob and renders the PDF inline with no
+  // way to save it — the original "opens on screen but can't save" symptom.
+  setTimeout(() => URL.revokeObjectURL(url), 40_000);
 }
 
 /* -------------------------------------------- */

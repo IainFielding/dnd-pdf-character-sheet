@@ -1,0 +1,5 @@
+# core.autocrlf is on for most contributors on Windows, but shell scripts must keep LF
+# endings — a CRLF shebang line ("#!/bin/sh\r") is an unusable interpreter on macOS,
+# Linux, and under Git Bash, which would silently break the sign-off hook.
+.githooks/** text eol=lf
+*.sh        text eol=lf

@@ -391,18 +391,22 @@ only, so `stripHtml` ([main.mjs:1562](scripts/main.mjs#L1562)) parses the HTML i
 
 ## 7. Saving and downloading
 
-`save()` ([main.mjs:493](scripts/main.mjs#L493)) is just `doc.save()`, returning a
+`save()` ([main.mjs:932](scripts/main.mjs#L932)) is just `doc.save()`, returning a
 `Uint8Array` of the finished PDF.
 
-`downloadBytes(bytes, filename)` ([main.mjs:417](scripts/main.mjs#L417)) turns those bytes
-into a browser download. Two subtleties are load-bearing and were bug fixes; **don't
+`downloadBytes(bytes, filename)` ([main.mjs:684](scripts/main.mjs#L684)) turns those bytes
+into a browser download. Three subtleties are load-bearing and were bug fixes; **don't
 "simplify" them away**:
 
 - The Blob uses the real `type: "application/pdf"` (not `octet-stream`) so browsers honour
   the `.pdf` filename; Safari in particular drops it otherwise.
-- The anchor element and object URL are cleaned up on a **40-second timeout**, not
-  synchronously. Removing them immediately cancels the download in some browsers, causing the
-  old "the PDF opens on screen but can't be saved" bug.
+- The anchor is **never attached to the page**, as `foundry.utils.saveDataToFile` does.
+  Attached, the click bubbles to listeners that cancel it and open the link instead; in the
+  Foundry desktop app that hands the `blob:` URL to the OS, which shows a "no app can open
+  this link" dialog instead of saving.
+- The object URL is revoked on a **40-second timeout**, not synchronously. Revoking it
+  immediately cancels the download in some browsers, causing the old "the PDF opens on screen
+  but can't be saved" bug.
 
 ---
 
