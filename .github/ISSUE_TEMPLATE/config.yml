@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/IainFielding/dnd-pdf-character-sheet#readme
+    about: Supplying the official sheet, what ends up on it, and troubleshooting — check here before filing an issue.
+  - name: Support the module
+    url: https://ko-fi.com/sogrom
+    about: If the module saved you some time, you can buy me a coffee.

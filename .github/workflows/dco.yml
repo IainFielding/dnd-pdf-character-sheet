@@ -1,0 +1,76 @@
+# Requires every commit in a pull request to carry a Signed-off-by trailer matching its
+# author — the Developer Certificate of Origin (see the DCO file at the repository root).
+#
+# This is the same check the DCO GitHub App (https://github.com/apps/dco) performs. The app
+# is deliberately *not* installed on this repository: it would need third-party access to
+# repository metadata to tell us something a dozen lines of shell already tell us, and this
+# workflow needs no installation, no permissions beyond the default read-only token, and no
+# maintainer intervention when the app changes ownership or pricing. If the app is ever
+# installed, delete this workflow rather than running both — two checks reporting the same
+# failure is just noise in the PR.
+#
+# Merge commits are skipped: GitHub's "Update branch" button creates them and there is no
+# way for a contributor to sign them off.
+name: DCO
+
+on:
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  check-sign-off:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out PR commits
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify Signed-off-by on every commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          fail=0
+          for sha in $(git rev-list --no-merges "$BASE_SHA".."$HEAD_SHA"); do
+            author_name=$(git log -1 --format=%an "$sha")
+            author_email=$(git log -1 --format=%ae "$sha")
+            subject=$(git log -1 --format=%s "$sha")
+            expected="Signed-off-by: $author_name <$author_email>"
+
+            # Case-insensitive literal match. Done with `case` rather than `grep -iF`:
+            # the trailer contains an email address, whose dots and plus signs would be
+            # regex metacharacters, and a quoted `case` pattern is literal by definition —
+            # no escaping, no dependence on grep's fixed-string handling.
+            msg_lc=$(git log -1 --format=%B "$sha" | tr '[:upper:]' '[:lower:]')
+            expected_lc=$(printf '%s' "$expected" | tr '[:upper:]' '[:lower:]')
+            case "$msg_lc" in
+              *"$expected_lc"*) continue ;;
+            esac
+
+            echo "::error::Commit $sha ($subject) is missing a matching sign-off."
+            echo "    expected: $expected"
+            found=$(git log -1 --format=%B "$sha" | grep -iE "^[[:space:]]*Signed-off-by:" || true)
+            if [ -n "$found" ]; then
+              echo "    found:    $found"
+              echo "    (the sign-off must match the commit author exactly)"
+            else
+              echo "    found:    no Signed-off-by trailer at all"
+            fi
+            fail=1
+          done
+
+          if [ "$fail" -ne 0 ]; then
+            echo ""
+            echo "By signing off you certify the Developer Certificate of Origin — see the"
+            echo "DCO file at the root of this repository, and CONTRIBUTING.md."
+            echo ""
+            echo "To fix:"
+            echo "    git commit --amend -s --no-edit      # the most recent commit"
+            echo "    git rebase --signoff origin/main     # every commit on your branch"
+            echo "Then force-push the branch."
+            exit 1
+          fi
+          echo "All commits are signed off."

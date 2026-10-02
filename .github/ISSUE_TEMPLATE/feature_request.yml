@@ -1,0 +1,59 @@
+name: Feature request
+description: Suggest something new for the exported sheet, the export dialog, or the API.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas are welcome. The goal of this module is a filled-in official sheet with
+        **nothing to configure** — suggestions that get more of the character onto the
+        page without adding settings are the easiest to say yes to.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the problem?
+      description: What are you trying to do that the module makes hard or impossible today?
+      placeholder: >-
+        My character's magic items don't show their charges anywhere on the sheet, so I
+        have to keep track of them separately at the table.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+      description: Describe the feature or change. If it's about the sheet, say which box or page it belongs on.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the module?
+      options:
+        - Content on the exported sheet
+        - Export dialog / choosing the sheet
+        - A new sheet layout
+        - Non-English characters / fonts
+        - Module API (another module calling this one)
+        - Compatibility with another module
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: Any workarounds you're using now, or other ways this could be solved.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmations
+      options:
+        - label: I searched the existing issues and this hasn't already been suggested.
+          required: true

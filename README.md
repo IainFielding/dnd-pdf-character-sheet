@@ -183,6 +183,9 @@ only works once the user has supplied their own copy of the official sheet, is i
 Bug reports and suggestions are welcome. Just log them in [GitHub Issues](https://github.com/IainFielding/dnd-pdf-character-sheet/issues). When reporting a problem, it helps to include the sheet layout you were using (2024 or 2014) and any messages from the
 browser console.
 
+Pull requests are welcome too. Every commit must be signed off under the Developer Certificate
+of Origin — [CONTRIBUTING.md](CONTRIBUTING.md) explains how, including a hook that does it for you.
+
 ---
 
 ## License

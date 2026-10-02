@@ -1,0 +1,138 @@
+name: Bug report
+description: An export fails, or something on the generated sheet is missing or wrong.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+
+        Before you file: please try reproducing the problem with **only** this module
+        and the D&D 5e system enabled. Most odd behaviour turns out to be a conflict
+        with another module, and knowing that up front saves a lot of back-and-forth.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the problem, and what you expected to happen instead.
+      placeholder: |
+        I exported a level 5 Wizard and the spell slots on page 2 were all blank.
+        I expected to see 4 / 3 / 2 slots for levels 1–3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: >-
+        The exact clicks needed to see the problem. Include anything about the character
+        that might matter — class and level, multiclassing, an unusual item or spell.
+      placeholder: |
+        1. Right-click the character in the Actors sidebar
+        2. Click "PDF Character Sheet" and choose the 2024 layout
+        3. Open the downloaded PDF
+        4. The spell slot boxes are empty
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it happen?
+      description: Which part of the module is involved? Pick the closest match.
+      options:
+        - Exporting / downloading the PDF
+        - Choosing or supplying the official sheet
+        - Header, ability scores or skills
+        - Combat, attacks or hit points
+        - Spellcasting
+        - Features, proficiencies, inventory or notes
+        - Portrait
+        - Non-English characters / fonts
+        - Module API (another module calling this one)
+        - Something else / not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layout
+    attributes:
+      label: Sheet layout
+      options:
+        - D&D 2024
+        - D&D 2014
+        - Both
+        - Not applicable
+    validations:
+      required: true
+
+  - type: dropdown
+    id: client
+    attributes:
+      label: How are you running Foundry?
+      description: Downloads behave differently in the desktop app and in each browser.
+      options:
+        - Foundry desktop app
+        - Chrome or Edge
+        - Firefox
+        - Safari
+        - Other browser
+    validations:
+      required: true
+
+  - type: input
+    id: foundry-version
+    attributes:
+      label: Foundry VTT version
+      description: Found in the bottom-left of the Foundry setup screen, e.g. 14.365.
+      placeholder: "14.365"
+    validations:
+      required: true
+
+  - type: input
+    id: system-version
+    attributes:
+      label: D&D 5e system version
+      description: Shown in Game Settings → Support & Issues, e.g. 6.0.5.
+      placeholder: "6.0.5"
+    validations:
+      required: true
+
+  - type: input
+    id: module-version
+    attributes:
+      label: Simple D&D PDF Character Sheet version
+      description: Shown in the Manage Modules list next to the module name.
+      placeholder: "2.4.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console errors
+      description: >-
+        Press F12 to open the developer tools, switch to the Console tab, reproduce the
+        problem, then paste any red error text here. Content that didn't fit on the sheet
+        is also reported there. This is automatically formatted as code, so no backticks needed.
+      render: text
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: >-
+        A screenshot of the wrong part of the exported sheet, next to the same part of the
+        character in Foundry, usually pins the problem down fastest.
+
+  - type: checkboxes
+    id: isolated
+    attributes:
+      label: Confirmations
+      options:
+        - label: I reproduced this with only this module and the D&D 5e system enabled.
+        - label: I searched the existing issues and this hasn't been reported yet.
+          required: true
