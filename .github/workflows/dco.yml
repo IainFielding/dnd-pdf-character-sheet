@@ -4,7 +4,7 @@
 # This is the same check the DCO GitHub App (https://github.com/apps/dco) performs. The app
 # is deliberately *not* installed on this repository: it would need third-party access to
 # repository metadata to tell us something a dozen lines of shell already tell us, and this
-# workflow needs no installation, no permissions beyond the default read-only token, and no
+# workflow needs no installation, no permissions beyond a read-only token, and no
 # maintainer intervention when the app changes ownership or pricing. If the app is ever
 # installed, delete this workflow rather than running both — two checks reporting the same
 # failure is just noise in the PR.
@@ -16,6 +16,9 @@ name: DCO
 on:
   pull_request:
     branches: ["**"]
+
+permissions:
+  contents: read
 
 jobs:
   check-sign-off:

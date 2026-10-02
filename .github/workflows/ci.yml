@@ -43,7 +43,7 @@ jobs:
       # Verify lib/pdf-lib.min.js is byte-identical (modulo CRLF) to the official npm
       # dist file of the version pinned in package.json — that pin is what Dependabot
       # watches for CVEs, so it must describe the file actually shipped. When
-      # re-vendoring, update the pin, this hash, and governance/technical-details.md §2.
+      # re-vendoring, update the pin, this hash, and docs/technical-details.md §2.
       - name: Verify vendored pdf-lib integrity
         run: |
           expected="0f9a5cad07941f0826586c94e089d89b918c46e5c17cf2d5a3c6f666e3bc694f"

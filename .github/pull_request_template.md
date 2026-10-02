@@ -41,12 +41,12 @@ the finished PDF, so please also say what you exported and checked in a real wor
 
 ## Checklist
 
-- [ ] Every commit is signed off (`git commit -s`) — see [CONTRIBUTING.md](../CONTRIBUTING.md)
+- [ ] Every commit is signed off (`git commit -s`) — see [CONTRIBUTING.md](https://github.com/IainFielding/dnd-pdf-character-sheet/blob/main/CONTRIBUTING.md)
 - [ ] No AI tool attribution in commit messages (`Co-Authored-By: Claude ...` and similar)
 - [ ] No official Wizards of the Coast sheet PDFs are committed
 - [ ] User-facing strings go through `lang/en.json` rather than being hard-coded
 - [ ] Added or updated unit tests for the changed behaviour
-- [ ] Updated the README or [docs/api.md](../docs/api.md) if the change is user- or developer-visible
+- [ ] Updated the README or [docs/api.md](https://github.com/IainFielding/dnd-pdf-character-sheet/blob/main/docs/api.md) if the change is user- or developer-visible
 - [ ] No unrelated changes bundled in
 
 ## Screenshots
