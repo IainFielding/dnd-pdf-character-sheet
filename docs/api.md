@@ -168,6 +168,7 @@ Errors thrown, all available on `sdpdf.errors`:
 | --- | --- |
 | `TemplateNotConfiguredError` | The user has not supplied that official sheet. `.template` is the layout key. |
 | `TemplateUnavailableError` | The file they supplied could not be loaded — moved, renamed or deleted. `.path` is the stored path. |
+| `TemplateMismatchError` | The file they supplied is not that fillable sheet — the other edition's PDF, a flattened "print to PDF" copy, or not a PDF. `.template` is the layout key, `.path` the stored path. |
 | `Error` | No actor matched what you passed, or the PDF could not be built. |
 
 ---
@@ -195,7 +196,7 @@ Errors thrown, all available on `sdpdf.errors`:
 | `isTemplateAvailable(key)` | `boolean` | Whether that one layout can be exported right now. |
 | `resolveActor(target)` | `Actor \| null` | The same lookup the API uses on whatever you pass it. |
 | `downloadPdf(bytes, filename)` | — | Save PDF bytes to the user's device, for when you have modified the bytes yourself. |
-| `errors` | `{TemplateNotConfiguredError, TemplateUnavailableError}` | The error types above. |
+| `errors` | `{TemplateNotConfiguredError, TemplateUnavailableError, TemplateMismatchError}` | The error types above. |
 | `MODULE_ID` | `string` | `"sogrom-dnd5e-character-sheet-pdf"`. |
 | `DEFAULT_TEMPLATE` | `string` | The layout used when the user has no preference: `"2024"`. |
 

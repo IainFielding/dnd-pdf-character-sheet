@@ -52,6 +52,7 @@ test("the API exposes the documented surface", () => {
   assert.equal(API.DEFAULT_TEMPLATE, "2024");
   assert.equal(API.errors.TemplateNotConfiguredError.name, "TemplateNotConfiguredError");
   assert.equal(API.errors.TemplateUnavailableError.name, "TemplateUnavailableError");
+  assert.equal(API.errors.TemplateMismatchError.name, "TemplateMismatchError");
 });
 
 /* -------------------------------------------- */
