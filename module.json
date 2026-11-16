@@ -20,7 +20,7 @@
   ],
   "version": "#{VERSION}#",
   "compatibility": {
-    "minimum": "14.359",
+    "minimum": "13.347",
     "maximum": "14.999",
     "verified": "14"
   },
@@ -38,7 +38,7 @@
         "type": "system",
         "compatibility": {
           "minimum": "5.3.3",
-          "verified": "6.0.5",
+          "verified": "6.1.0",
           "maximum" : "6.99.99"
         }
       }
