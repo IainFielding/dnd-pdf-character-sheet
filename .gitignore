@@ -7,3 +7,9 @@ governance/
 # dialog; any local copy kept here for testing must never be committed.
 templates/DnD_2014_Character-Sheet.pdf
 templates/DnD_2024_Character-Sheet.pdf
+
+# End-to-end harness: machine-specific config and run output (see test-e2e/README.md)
+test-e2e/
+test-e2e/config.mjs
+test-e2e/out/
+test-e2e/*.log

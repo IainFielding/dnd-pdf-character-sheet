@@ -1,4 +1,4 @@
-![](https://img.shields.io/badge/Foundry-v14-informational) ![Latest Release Download Count](https://img.shields.io/github/downloads/IainFielding/dnd-pdf-character-sheet/latest/module.zip?label=Downloads) <br>
+![](https://img.shields.io/badge/Foundry-v13%20%7C%20v14-informational) ![Latest Release Download Count](https://img.shields.io/github/downloads/IainFielding/dnd-pdf-character-sheet/latest/module.zip?label=Downloads) <br>
 # Simple D&D PDF Character Sheet
 
 A Foundry VTT module that turns any D&D 5e player character into a completed PDF character sheet. It reads everything straight from the actor's data and fills in the sheet, ready to print or save.
@@ -13,7 +13,7 @@ Due to licensing and copyright rules I can't bundle the official sheets in the m
 
 ## Requirements
 
-- **Foundry VTT** version 14 or newer
+- **Foundry VTT** version 13 (build 347) or newer
 - **D&D 5e** game system version 5.3.3 or newer
 - **Your own copy of an official D&D character sheet PDF** — see [Choosing the sheet layout](#choosing-the-sheet-layout)
 

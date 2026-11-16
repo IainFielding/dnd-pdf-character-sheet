@@ -24,5 +24,6 @@
   "SDPDF.Export.Download": "Download the official PDF",
   "SDPDF.Export.NotProvided": "This official sheet is copyrighted and cannot be bundled with the module. Download your own copy, upload it to Foundry, then browse to it here.",
   "SDPDF.Export.MissingOfficial": "That official sheet has not been provided yet. Use the export dialog to download and select it first.",
-  "SDPDF.Export.TemplateUnavailable": "The PDF you selected could not be loaded from {path}. It may have been moved, renamed or deleted — upload it again and use \"Change\" in the export dialog to re-select it."
+  "SDPDF.Export.TemplateUnavailable": "The PDF you selected could not be loaded from {path}. It may have been moved, renamed or deleted — upload it again and use \"Change\" in the export dialog to re-select it.",
+  "SDPDF.Export.TemplateMismatch": "The file selected for the {layout} ({path}) is not that fillable PDF, so it cannot be filled in. Download the official PDF using the link in the export dialog — saving the file itself rather than printing it to PDF — then use \"Change\" to select it."
 }

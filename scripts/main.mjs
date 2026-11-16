@@ -522,6 +522,7 @@ export function getTemplates() {
  * @throws {Error}                       If no actor matches `target`.
  * @throws {TemplateNotConfiguredError}  If the user has not supplied that official sheet yet.
  * @throws {TemplateUnavailableError}    If the sheet they supplied could not be loaded.
+ * @throws {TemplateMismatchError}       If the file they supplied is not that fillable sheet.
  */
 export async function createPdf(target, options={}) {
   const actor = resolveActor(target);
@@ -530,7 +531,16 @@ export async function createPdf(target, options={}) {
   const { path, Filler } = templateConfig(template);
   if ( !path ) throw new TemplateNotConfiguredError(template);
 
-  let filler = await Filler.create(path);
+  let filler;
+  try {
+    filler = await Filler.create(path);
+  } catch(err) {
+    if ( err instanceof TemplateUnavailableError ) throw err;
+    // The file was fetched but pdf-lib could not read it: not a PDF at all, or a damaged one.
+    console.error(`${MODULE_ID} | Could not parse the PDF at ${path}`, err);
+    throw new TemplateMismatchError(template, path);
+  }
+  if ( !filler.matchesLayout() ) throw new TemplateMismatchError(template, path);
   await filler.fillActor(actor);
 
   // The standard fonts cover Latin-1 only, so a Cyrillic name, a Polish "ł" or a Turkish "ş"
@@ -645,6 +655,10 @@ async function generatePdf(target, template, options={}) {
       }
       else if ( err instanceof TemplateUnavailableError ) {
         ui.notifications.error(game.i18n.format("SDPDF.Export.TemplateUnavailable", { path: err.path }), { permanent: true });
+      }
+      else if ( err instanceof TemplateMismatchError ) {
+        const layout = game.i18n.localize(OFFICIAL_TEMPLATES[err.template].label);
+        ui.notifications.error(game.i18n.format("SDPDF.Export.TemplateMismatch", { layout, path: err.path }), { permanent: true });
       }
       else ui.notifications.error(game.i18n.localize("SDPDF.Error"));
     }
@@ -847,6 +861,23 @@ export class TemplateUnavailableError extends Error {
 }
 
 /**
+ * The file the user pointed a layout at loaded, but is not that layout's fillable sheet: the other
+ * edition's PDF, a copy "printed to PDF" from a browser (which flattens the form away), or some
+ * other document entirely. Without this every field lookup misses and the export "succeeds" with
+ * a blank sheet and a console full of unknown-field warnings.
+ */
+export class TemplateMismatchError extends Error {
+  constructor(template, path) {
+    super(`The PDF at ${path} is not the fillable "${template}" character sheet`);
+    this.name = "TemplateMismatchError";
+    /** The layout key the file was supplied for, e.g. "2024". */
+    this.template = template;
+    /** The path as stored in the setting, i.e. what the user needs to re-point. */
+    this.path = path;
+  }
+}
+
+/**
  * Base filler plus the 2014-layout `fillActor`. The low-level helpers (`create`, `text`, `check`,
  * `fillFeatureBlocks`, …) are template-agnostic; {@link Sheet2024Filler} extends this class and
  * overrides `fillActor` for the very different 2024 layout.
@@ -927,6 +958,24 @@ export class SheetFiller {
    */
   static normalize(name) {
     return name.replace(/\s+/g, "").toLowerCase();
+  }
+
+  /**
+   * Text fields that identify this layout's official sheet. Neither edition's names appear on the
+   * other's sheet, so finding none of them means the wrong file was supplied.
+   * @type {string[]}
+   */
+  static SIGNATURE_FIELDS = [FIELDS.characterName, FIELDS.classLevel];
+
+  /**
+   * Whether the loaded PDF is the sheet this filler knows how to fill. Deliberately lenient — one
+   * signature field is enough — so a sheet that has merely lost a field still exports.
+   * @returns {boolean}
+   */
+  matchesLayout() {
+    return this.constructor.SIGNATURE_FIELDS.some(name => {
+      return this.#index.get(SheetFiller.normalize(name)) instanceof PDFLib.PDFTextField;
+    });
   }
 
   async save() {
@@ -1483,6 +1532,9 @@ export class SheetFiller {
  * to list the remainder.
  */
 export class Sheet2024Filler extends SheetFiller {
+  /** @override */
+  static SIGNATURE_FIELDS = [F24.characterName, F24.class];
+
   /** Populate the form from a dnd5e character actor. */
   async fillActor(actor) {
     const system = actor.system;
@@ -2094,7 +2146,7 @@ export const API = {
   isTemplateAvailable,
   resolveActor,
   /** Error types thrown by {@link createPdf}, exposed so callers can tell them apart. */
-  errors: { TemplateNotConfiguredError, TemplateUnavailableError },
+  errors: { TemplateNotConfiguredError, TemplateUnavailableError, TemplateMismatchError },
   // Developer tooling, namespaced off the main surface so it reads as intentional rather than
   // part of the supported API. See {@link generateDebugPdf}.
   debug: { generateFieldMap: template => generateDebugPdf(template) }

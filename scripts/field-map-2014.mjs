@@ -76,8 +76,15 @@ export const SPELL_LEVELS = {
   9: { lines: spells([10108, 10107, 10109, ...seq(101010, 101013)]), checks: [327, 326, ...seq(3079, 3083)].map(cb) }
 };
 
-/** Spell slot header fields: level 1 => "SlotsTotal 19" ... level 9 => "SlotsTotal 27". */
-export const slotFields = level => ({ total: `SlotsTotal ${18 + level}`, remaining: `SlotsRemaining ${18 + level}` });
+/**
+ * Spell slot header fields: level 1 => "SlotsTotal 19" ... level 9 => "SlotsTotal 27". The level is
+ * coerced because callers iterate slot tables with Object.entries, whose keys are strings, and
+ * `18 + "1"` is "181": a field that does not exist, leaving every slot box blank.
+ */
+export const slotFields = level => {
+  const n = 18 + Number(level);
+  return { total: `SlotsTotal ${n}`, remaining: `SlotsRemaining ${n}` };
+};
 
 /** Simple one-to-one text fields. */
 export const FIELDS = {
