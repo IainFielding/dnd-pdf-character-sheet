@@ -73,6 +73,11 @@ test("2014 slotFields maps levels 1-9 onto SlotsTotal 19-27", () => {
   assert.deepEqual(slotFields(9), { total: "SlotsTotal 27", remaining: "SlotsRemaining 27" });
 });
 
+test("2014 slotFields accepts the string levels Object.entries hands back", () => {
+  assert.deepEqual(slotFields("1"), { total: "SlotsTotal 19", remaining: "SlotsRemaining 19" });
+  assert.deepEqual(slotFields("9"), { total: "SlotsTotal 27", remaining: "SlotsRemaining 27" });
+});
+
 /* -------------------------------------------- 2024 -------------------------------------------- */
 
 test("2024 abilities and skills cover the full set with unique boxes", () => {
