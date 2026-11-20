@@ -106,18 +106,22 @@ if ( globalThis.Hooks ) {
 
   /** Add a "PDF Character Sheet" entry to the Actor directory context menu. */
   Hooks.on("getActorContextOptions", (application, options) => {
-    options.push({
-      name: "SDPDF.ContextMenuLabel",
-      icon: '<i class="fa-solid fa-file-pdf"></i>',
-      condition: li => {
-        const actor = game.actors.get(li.dataset.entryId);
-        return (actor?.type === "character") && actor.testUserPermission(game.user, "OBSERVER");
-      },
-      callback: li => {
-        const actor = game.actors.get(li.dataset.entryId);
-        if ( actor ) PdfExportDialog.open(actor);
-      }
-    });
+    const icon = '<i class="fa-solid fa-file-pdf"></i>';
+    const visible = li => {
+      const actor = game.actors.get(li.dataset.entryId);
+      return (actor?.type === "character") && actor.testUserPermission(game.user, "OBSERVER");
+    };
+    const open = li => {
+      const actor = game.actors.get(li.dataset.entryId);
+      if ( actor ) PdfExportDialog.open(actor);
+    };
+    // V14 renamed the entry fields (name → label, condition → visible, callback → onClick) and
+    // warns on the old ones; V13 only understands the old ones.
+    if ( game.release.generation >= 14 ) {
+      options.push({ label: "SDPDF.ContextMenuLabel", icon, visible, onClick: (event, li) => open(li) });
+    } else {
+      options.push({ name: "SDPDF.ContextMenuLabel", icon, condition: visible, callback: open });
+    }
   });
 
   /**
