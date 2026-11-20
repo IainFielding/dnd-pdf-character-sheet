@@ -7,6 +7,9 @@
   "SDPDF.CustomFontFailed": "The font at {path} could not be loaded, so the bundled font was used instead. Check the path in the module settings.",
   "SDPDF.Settings.Template.Choice2024": "2024 Official Sheet",
   "SDPDF.Settings.Template.Choice2014": "2014 Official Sheet",
+  "SDPDF.Settings.WorldPath2024.Name": "2024 official sheet for all players",
+  "SDPDF.Settings.WorldPath2014.Name": "2014 official sheet for all players",
+  "SDPDF.Settings.WorldPath.Hint": "Optional. A copy of this official sheet, uploaded to Foundry, that anyone without their own copy will use. Players who lack the \"Use File Browser\" permission (by default, anyone below Trusted Player) cannot pick a sheet themselves, so set this for them. A player who has picked their own copy keeps using it.",
   "SDPDF.Settings.CustomFont.Name": "Font for non-Latin text",
   "SDPDF.Settings.CustomFont.Hint": "Only needed for alphabets the bundled PT Sans does not cover, such as Greek, Vietnamese, Chinese, Japanese or Korean. Leave empty unless characters are missing from your exported sheets. Must be a .ttf or .otf file; headings will render in the regular weight.",
   "SDPDF.Export.Title": "Export Character Sheet",
@@ -23,7 +26,9 @@
   "SDPDF.Export.Change": "Change",
   "SDPDF.Export.Download": "Download the official PDF",
   "SDPDF.Export.NotProvided": "This official sheet is copyrighted and cannot be bundled with the module. Download your own copy, upload it to Foundry, then browse to it here.",
+  "SDPDF.Export.NoBrowse": "This official sheet is copyrighted and cannot be bundled with the module, and you don't have permission to pick a file in Foundry. Ask your GM to set this sheet in the module settings, or to give you the \"Use File Browser\" permission.",
   "SDPDF.Export.MissingOfficial": "That official sheet has not been provided yet. Use the export dialog to download and select it first.",
+  "SDPDF.Export.AskGM": "The official sheet for this layout is missing or could not be used. Ask your GM to check the file set for it in the module settings.",
   "SDPDF.Export.TemplateUnavailable": "The PDF you selected could not be loaded from {path}. It may have been moved, renamed or deleted — upload it again and use \"Change\" in the export dialog to re-select it.",
   "SDPDF.Export.TemplateMismatch": "The file selected for the {layout} ({path}) is not that fillable PDF, so it cannot be filled in. Download the official PDF using the link in the export dialog — saving the file itself rather than printing it to PDF — then use \"Change\" to select it."
 }

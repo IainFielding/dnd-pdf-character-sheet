@@ -14,11 +14,14 @@ import { API, getTemplates, isTemplateAvailable, resolveActor } from "../scripts
 /**
  * Stub the Foundry globals the API touches.
  * @param {object} [options]
- * @param {Record<string, string>} [options.settings]  Client settings, keyed by setting name.
+ * @param {Record<string, string>} [options.settings]  Client and world settings, keyed by setting name.
  * @param {Actor[]} [options.actors]                   Stand-in actor documents.
+ * @param {boolean} [options.canBrowse]                Whether the user has the "Use File Browser"
+ *                                                     permission (Trusted Player and above, by default).
  */
-function stubFoundry({ settings={}, actors=[] }={}) {
+function stubFoundry({ settings={}, actors=[], canBrowse=true }={}) {
   globalThis.game = {
+    user: { can: action => (action === "FILES_BROWSE") ? canBrowse : true },
     settings: { get: (module, key) => settings[key] ?? "" },
     i18n: { localize: key => key, format: (key, data) => `${key}:${JSON.stringify(data)}` },
     actors: {
@@ -102,6 +105,18 @@ test("a layout is only available once the user has supplied that sheet", () => {
   assert.equal(isTemplateAvailable("2014"), false, "no path supplied yet");
   assert.equal(isTemplateAvailable("2099"), false, "an unknown layout is never available");
   assert.equal(isTemplateAvailable(undefined), false);
+});
+
+/* -------------------------------------------- */
+
+test("a sheet the GM set for the world is used by anyone without their own", () => {
+  stubFoundry({ settings: { worldPath2024: "worlds/test/gm-2024.pdf" }, canBrowse: false });
+  assert.equal(isTemplateAvailable("2024"), true);
+  assert.equal(getTemplates().find(t => t.key === "2024").path, "worlds/test/gm-2024.pdf");
+  assert.equal(isTemplateAvailable("2014"), false, "the GM has not set this one");
+
+  stubFoundry({ settings: { officialPath2024: "own/2024.pdf", worldPath2024: "worlds/test/gm-2024.pdf" } });
+  assert.equal(getTemplates().find(t => t.key === "2024").path, "own/2024.pdf", "the user's own copy wins");
 });
 
 /* -------------------------------------------- */
@@ -196,6 +211,19 @@ test("exporting a layout the user has not supplied fails cleanly", async () => {
   assert.deepEqual(notifications.error, ["SDPDF.Export.MissingOfficial"],
     "the user is pointed at the export dialog, not the console");
   assert.deepEqual(notifications.info, [], "and is not told a sheet is being generated first");
+});
+
+/* -------------------------------------------- */
+
+test("a user who cannot browse for a missing sheet is told to ask the GM", async () => {
+  const actor = stubActor("abc123", "Tordek");
+  stubFoundry({ settings: { template: "2024" }, actors: [actor], canBrowse: false });
+  const notifications = stubUi();
+  stubHooks();
+
+  assert.equal(await API.generatePdf(actor), null);
+  assert.deepEqual(notifications.error, ["SDPDF.Export.AskGM"],
+    "the export dialog's file picker would do nothing for them");
 });
 
 /* -------------------------------------------- */
