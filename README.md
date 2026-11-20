@@ -95,8 +95,9 @@ The official sheets are copyrighted and are not distributed with the module. To 
 
 ### Setting it up for your players (GMs).
 
-1. Configure Settings → Module Settings. 
-   - Everyone without their own copy then uses yours. 
+1. Configure Settings → Simple D&D PDF Character Sheet Module Settings. 
+   - Set file location for 2014 sheet. 
+   - Set file location for 2024 sheet.
    
 Alternatively, give players the **Use File Browser** permission under**Configure Permissions** in the Game Settings sidebar. A player who can't browse and has no sheet
 set by the GM sees a note in the export dialog asking them to contact you.
