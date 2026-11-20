@@ -84,7 +84,6 @@ the Coast's own sheets. Each appears as a selectable choice **only once you have
 copy**.
 
 ### Providing your copy of an official sheet
-
 The official sheets are copyrighted and are not distributed with the module. To use one:
 
 1. Download the PDF from D&D Beyond:
@@ -93,6 +92,15 @@ The official sheets are copyrighted and are not distributed with the module. To 
 2. In the export dialog, next to the sheet you want, click **Choose file…**, then upload or
    browse to the PDF you downloaded.
 3. That layout is now a selectable option and stays available for future exports.
+
+### Setting it up for your players (GMs).
+
+1. Configure Settings → Simple D&D PDF Character Sheet Module Settings. 
+   - Set file location for 2014 sheet. 
+   - Set file location for 2024 sheet.
+   
+Alternatively, give players the **Use File Browser** permission under**Configure Permissions** in the Game Settings sidebar. A player who can't browse and has no sheet
+set by the GM sees a note in the export dialog asking them to contact you.
 
 ![The export dialog before an official sheet has been provided](docs/img/ExportCharacterSheetUI-WithOfficialCharacterSheets.png)
 

@@ -50,11 +50,15 @@ is missing:
 
 The official Wizards of the Coast sheets are copyrighted, so this module cannot bundle them. Each
 layout only works once **that user** has downloaded the official PDF and pointed the module at their
-own copy. Until then an export of that layout fails with `TemplateNotConfiguredError`.
+own copy, or the GM has set a copy for the whole world in the module settings (which anyone without
+their own copy falls back to). Until then an export of that layout fails with
+`TemplateNotConfiguredError`.
 
 So an export is never guaranteed to succeed. Two ways to handle it:
 
 - Call `promptPdf()` and let this module's own window walk the user through supplying the file.
+  Picking a file needs core's "Use File Browser" permission (Trusted Player and above by default);
+  users without it are told to ask the GM instead.
 - Check `isTemplateAvailable()` / `getTemplates()` first, and only offer a silent export when a
   layout is ready.
 
@@ -192,7 +196,7 @@ Errors thrown, all available on `sdpdf.errors`:
 
 | Member | Returns | Purpose |
 | --- | --- | --- |
-| `getTemplates()` | `Array<{key, label, url, path, available}>` | Every layout, in the order the export window lists them. `label` is localized, `url` is where the official sheet is downloaded from, `path` is the user's copy, `available` is whether an export would work. |
+| `getTemplates()` | `Array<{key, label, url, path, available}>` | Every layout, in the order the export window lists them. `label` is localized, `url` is where the official sheet is downloaded from, `path` is the file that will be used (the user's own copy, else the GM's world copy, else `""`), `available` is whether an export would work. |
 | `isTemplateAvailable(key)` | `boolean` | Whether that one layout can be exported right now. |
 | `resolveActor(target)` | `Actor \| null` | The same lookup the API uses on whatever you pass it. |
 | `downloadPdf(bytes, filename)` | — | Save PDF bytes to the user's device, for when you have modified the bytes yourself. |

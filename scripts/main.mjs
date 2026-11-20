@@ -12,20 +12,23 @@ const DEFAULT_TEMPLATE = "2024";
  * The two official Wizards of the Coast sheets, and the only layouts this module supports. Their
  * PDFs are copyrighted, so the module cannot bundle them; instead the user downloads each from
  * D&D Beyond and points the matching client setting at their own copy. Each entry drives the
- * export dialog (label, download link, which setting stores the user's file);
+ * export dialog (label, download link, which client setting stores the user's own file and which
+ * world setting stores the GM's fallback for the whole table);
  * {@link templateConfig} pairs the key with its filler class.
- * @type {Record<string, {label: string, url: string, setting: string}>}
+ * @type {Record<string, {label: string, url: string, setting: string, worldSetting: string}>}
  */
 const OFFICIAL_TEMPLATES = {
   "2024": {
     label: "SDPDF.Settings.Template.Choice2024",
     url: "https://media.dndbeyond.com/compendium-images/free-rules/ph/character-sheet.pdf",
-    setting: "officialPath2024"
+    setting: "officialPath2024",
+    worldSetting: "worldPath2024"
   },
   "2014": {
     label: "SDPDF.Settings.Template.Choice2014",
     url: "https://media.dndbeyond.com/compendium-images/marketing/dnd_5e_charactersheet_formfillable.pdf",
-    setting: "officialPath2014"
+    setting: "officialPath2014",
+    worldSetting: "worldPath2014"
   }
 };
 
@@ -33,8 +36,8 @@ const OFFICIAL_TEMPLATES = {
  * Resolve a template key to its PDF file path and the filler class that understands its layout.
  * Looked up when a PDF is generated rather than at module load, because the filler classes are
  * defined further down this file and do not exist yet while the top of the file is evaluating.
- * Neither sheet can be distributed, so the path always comes from the client setting the user
- * pointed at their own download, and is empty until they supply one.
+ * Neither sheet can be distributed, so the path always comes from a file someone supplied: see
+ * {@link templatePath}. It is empty until somebody does.
  * @param {string} key  "2024" or "2014". An unrecognised key falls back to {@link DEFAULT_TEMPLATE},
  *                      so a stale or malformed setting still resolves to a usable layout.
  * @returns {{path: string, Filler: typeof SheetFiller}}
@@ -46,7 +49,29 @@ function templateConfig(key) {
     key = DEFAULT_TEMPLATE;
     official = OFFICIAL_TEMPLATES[key];
   }
-  return { path: game.settings.get(MODULE_ID, official.setting), Filler: (key === "2014") ? SheetFiller : Sheet2024Filler };
+  return { path: templatePath(key), Filler: (key === "2014") ? SheetFiller : Sheet2024Filler };
+}
+
+/**
+ * The PDF a layout will be filled from: the user's own pick if they have made one, otherwise the
+ * file the GM set for the whole world. The fallback exists because players without the core "Use
+ * File Browser" permission (by default, anyone below Trusted Player) cannot pick a file themselves.
+ * @param {string} key  "2024" or "2014".
+ * @returns {string}    A path or URL, or "" when neither has been set.
+ */
+function templatePath(key) {
+  const official = OFFICIAL_TEMPLATES[key];
+  if ( !official ) return "";
+  return game.settings.get(MODULE_ID, official.setting) || game.settings.get(MODULE_ID, official.worldSetting);
+}
+
+/**
+ * Whether the current user may open Foundry's file browser. Core's FilePicker silently does nothing
+ * for users without the permission, so callers check this first and explain instead.
+ * @returns {boolean}
+ */
+function canBrowseFiles() {
+  return game.user?.can("FILES_BROWSE") ?? false;
 }
 
 /* -------------------------------------------- */
@@ -68,12 +93,28 @@ if ( globalThis.Hooks ) {
 
     // Paths to the user's own copies of the copyrighted official sheets, set via the file browser in
     // the export dialog. Empty until supplied, which is what hides those options in the dialog.
-    for ( const { setting } of Object.values(OFFICIAL_TEMPLATES) ) {
+    // Each has a world-scoped twin, set by the GM in the module settings, that every user falls back
+    // to: players without the "Use File Browser" permission have no other way to supply a sheet.
+    for ( const [key, { setting, worldSetting }] of Object.entries(OFFICIAL_TEMPLATES) ) {
       game.settings.register(MODULE_ID, setting, {
         scope: "client",
         config: false,
         type: String,
         default: ""
+      });
+      game.settings.register(MODULE_ID, worldSetting, {
+        name: `SDPDF.Settings.WorldPath${key}.Name`,
+        hint: "SDPDF.Settings.WorldPath.Hint",
+        scope: "world",
+        config: true,
+        restricted: true,
+        type: String,
+        filePicker: "any",
+        default: "",
+        // Re-render an open export dialog so a player sees the newly provided sheet straight away.
+        onChange: () => foundry.applications.instances.forEach(app => {
+          if ( app instanceof PdfExportDialog ) app.render();
+        })
       });
     }
 
@@ -106,18 +147,22 @@ if ( globalThis.Hooks ) {
 
   /** Add a "PDF Character Sheet" entry to the Actor directory context menu. */
   Hooks.on("getActorContextOptions", (application, options) => {
-    options.push({
-      name: "SDPDF.ContextMenuLabel",
-      icon: '<i class="fa-solid fa-file-pdf"></i>',
-      condition: li => {
-        const actor = game.actors.get(li.dataset.entryId);
-        return (actor?.type === "character") && actor.testUserPermission(game.user, "OBSERVER");
-      },
-      callback: li => {
-        const actor = game.actors.get(li.dataset.entryId);
-        if ( actor ) PdfExportDialog.open(actor);
-      }
-    });
+    const icon = '<i class="fa-solid fa-file-pdf"></i>';
+    const visible = li => {
+      const actor = game.actors.get(li.dataset.entryId);
+      return (actor?.type === "character") && actor.testUserPermission(game.user, "OBSERVER");
+    };
+    const open = li => {
+      const actor = game.actors.get(li.dataset.entryId);
+      if ( actor ) PdfExportDialog.open(actor);
+    };
+    // V14 renamed the entry fields (name → label, condition → visible, callback → onClick) and
+    // warns on the old ones; V13 only understands the old ones.
+    if ( game.release.generation >= 14 ) {
+      options.push({ label: "SDPDF.ContextMenuLabel", icon, visible, onClick: (event, li) => open(li) });
+    } else {
+      options.push({ name: "SDPDF.ContextMenuLabel", icon, condition: visible, callback: open });
+    }
   });
 
   /**
@@ -249,6 +294,7 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
       const L = key => game.i18n.localize(key);
       const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
       const badge = (tone, key) => `<span class="sdpdf-badge sdpdf-badge--${tone}">${L(key)}</span>`;
+      const canBrowse = canBrowseFiles();
 
       // One card per layout: a selectable radio card once the user has supplied that official
       // sheet, or a download/browse prompt until they do.
@@ -263,8 +309,12 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
           const checked = (key === this.selected) ? " checked" : "";
           // A supplied sheet shows the file it points at plus a "Change" control, so a wrong pick
           // can be re-pointed here (the Browse button on the locked card is gone once a file is
-          // set). The button reuses the same browse action as the locked card.
-          const filePath = game.settings.get(MODULE_ID, official.setting);
+          // set). The button reuses the same browse action as the locked card, and is left out for
+          // users who cannot browse, who are using the GM's file and cannot pick another.
+          const filePath = templatePath(key);
+          const change = canBrowse
+            ? `<button type="button" class="sdpdf-card-change" data-action="browse" data-key="${key}">${L("SDPDF.Export.Change")}</button>`
+            : "";
           const fileName = filePath.split(/[\\/]/).pop();
           return `<label class="sdpdf-card">
             <input type="radio" name="template" value="${key}"${checked}>
@@ -278,12 +328,25 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
               <span class="sdpdf-card-file">
                 <i class="fa-solid fa-paperclip"></i>
                 <span class="sdpdf-card-filename" title="${esc(filePath)}">${esc(fileName)}</span>
-                <button type="button" class="sdpdf-card-change" data-action="browse" data-key="${key}">${L("SDPDF.Export.Change")}</button>
+                ${change}
               </span>
             </span>
             <span class="sdpdf-card-check"><i class="fa-solid fa-circle-check"></i></span>
           </label>`;
         }
+
+        // Core's file browser silently does nothing for users without the "Use File Browser"
+        // permission, so rather than a button that appears broken, tell them who can fix it.
+        if ( !canBrowse ) return `<div class="sdpdf-card is-locked">
+          ${icon}
+          <span class="sdpdf-card-body">
+            <span class="sdpdf-card-head">
+              <span class="sdpdf-card-name">${label}</span>
+              ${badge("locked", "SDPDF.Export.BadgeLocked")}
+            </span>
+            <span class="sdpdf-card-desc">${L("SDPDF.Export.NoBrowse")}</span>
+          </span>
+        </div>`;
 
         return `<div class="sdpdf-card is-locked">
           ${icon}
@@ -354,8 +417,13 @@ if ( globalThis.foundry?.applications?.api?.ApplicationV2 ) {
       const key = target.dataset.key;
       const official = OFFICIAL_TEMPLATES[key];
       if ( !official ) return;
+      // The dialog hides this button from such users; this covers a permission revoked while it is open.
+      if ( !canBrowseFiles() ) {
+        ui.notifications.warn("SDPDF.Export.NoBrowse", { localize: true });
+        return;
+      }
       this.#syncSelection();
-      const current = game.settings.get(MODULE_ID, official.setting);
+      const current = templatePath(key);
       const picker = new foundry.applications.apps.FilePicker.implementation({
         type: "any",
         current: current || undefined,
@@ -481,13 +549,13 @@ function resolveTemplateKey(template) {
 
 /**
  * Whether a layout can be exported right now, i.e. the user has supplied their own copy of that
- * copyrighted official sheet. Worth checking before offering an export in another module's UI.
+ * copyrighted official sheet, or the GM has set one for the world. Worth checking before offering an export in another module's UI.
  * @param {string} key  Layout key ("2024" or "2014").
  * @returns {boolean}
  */
 export function isTemplateAvailable(key) {
   const official = OFFICIAL_TEMPLATES[key];
-  return !!official && !!game.settings.get(MODULE_ID, official.setting);
+  return !!official && !!templatePath(key);
 }
 
 /**
@@ -496,12 +564,13 @@ export function isTemplateAvailable(key) {
  * keys look like integers and so come back from the object in numeric order, not the intended one.
  * @returns {Array<{key: string, label: string, url: string, path: string, available: boolean}>}
  *          `label` is localized, `url` is where the official sheet is downloaded from, and `path`
- *          is the user's own copy ("" until they supply one, which is when `available` turns true).
+ *          is the file that will be used: the user's own copy, else the GM's world copy ("" until
+ *          one of them is supplied, which is when `available` turns true).
  */
 export function getTemplates() {
   return EXPORT_GROUPS.flatMap(group => group.keys).map(key => {
     const official = OFFICIAL_TEMPLATES[key];
-    const path = game.settings.get(MODULE_ID, official.setting);
+    const path = templatePath(key);
     return { key, label: game.i18n.localize(official.label), url: official.url, path, available: !!path };
   });
 }
@@ -650,7 +719,13 @@ async function generatePdf(target, template, options={}) {
     // A layout that was never supplied, or whose file has since moved, is a user-fixable problem:
     // point them back at the picker rather than at the console.
     if ( notify ) {
-      if ( err instanceof TemplateNotConfiguredError ) {
+      const templateProblem = (err instanceof TemplateNotConfiguredError) || (err instanceof TemplateUnavailableError)
+        || (err instanceof TemplateMismatchError);
+      // The fixes below all go through the file browser; a user without it can only ask the GM.
+      if ( templateProblem && !canBrowseFiles() ) {
+        ui.notifications.error(game.i18n.localize("SDPDF.Export.AskGM"), { permanent: true });
+      }
+      else if ( err instanceof TemplateNotConfiguredError ) {
         ui.notifications.error(game.i18n.localize("SDPDF.Export.MissingOfficial"));
       }
       else if ( err instanceof TemplateUnavailableError ) {
