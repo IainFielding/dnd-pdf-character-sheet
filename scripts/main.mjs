@@ -145,6 +145,29 @@ if ( globalThis.Hooks ) {
    */
   Hooks.once("ready", () => Hooks.callAll("sdpdf.ready", API));
 
+  /**
+   * Put a download link for the matching official PDF under each GM world-sheet setting. A hint is
+   * rendered as escaped text, so the link cannot live in it and is added once the form renders.
+   * The settings are restricted, so only users allowed to edit them (the GM) see the fields.
+   */
+  Hooks.on("renderSettingsConfig", (application, element) => {
+    const root = (element instanceof HTMLElement) ? element : element?.[0];
+    if ( !root ) return;
+    for ( const { url, worldSetting } of Object.values(OFFICIAL_TEMPLATES) ) {
+      const group = root.querySelector(`[name="${MODULE_ID}.${worldSetting}"]`)?.closest(".form-group");
+      if ( !group || group.querySelector(".sdpdf-settings-download") ) continue;
+      const p = document.createElement("p");
+      p.className = "hint sdpdf-settings-download";
+      const a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.innerHTML = `<i class="fa-solid fa-file-arrow-down" inert></i> ${game.i18n.localize("SDPDF.Export.Download")}`;
+      p.append(a);
+      group.append(p);
+    }
+  });
+
   /** Add a "PDF Character Sheet" entry to the Actor directory context menu. */
   Hooks.on("getActorContextOptions", (application, options) => {
     const icon = '<i class="fa-solid fa-file-pdf"></i>';

@@ -95,7 +95,9 @@ The official sheets are copyrighted and are not distributed with the module. To 
 
 ### Setting it up for your players (GMs).
 
-1. Configure Settings → Simple D&D PDF Character Sheet Module Settings. 
+1. Configure Settings → Simple D&D PDF Character Sheet Module Settings. Each sheet's setting has a
+   **Download the official PDF** link to that edition's sheet, so you can download it, upload it to
+   Foundry, and then pick it here.
    - Set file location for 2014 sheet. 
    - Set file location for 2024 sheet.
    
